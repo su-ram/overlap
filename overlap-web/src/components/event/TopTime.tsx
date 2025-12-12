@@ -47,3 +47,4 @@ export function TopTime({ slots, onDateClick, selectedDateKey }: TopTimeProps) {
     </div>
   );
 }
+

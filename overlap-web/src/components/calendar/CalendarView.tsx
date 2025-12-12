@@ -127,3 +127,4 @@ export function CalendarView({ onDateSelect }: CalendarViewProps) {
     </div>
   );
 }
+

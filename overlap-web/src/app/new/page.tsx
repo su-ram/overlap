@@ -13,16 +13,40 @@ export default function NewEventPage() {
     setParticipantCount(count);
   }, []);
 
-  const handleSubmit = (payload: {
+  const handleSubmit = async (payload: {
     title: string;
     maxParticipants: number;
     location: string;
   }) => {
-    // 고유 key 생성 (UUID v4)
-    const eventId = crypto.randomUUID();
-    
-    // 생성된 key로 모임 페이지로 리다이렉트
-    router.push(`/moim/${eventId}`);
+    try {
+      // Next.js API Route로 모임 생성
+      const response = await fetch('/api/moim', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          moim_name: payload.title || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to create moim: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      const eventId = result.id; // UUID string
+      
+      // 생성된 ID로 모임 페이지로 리다이렉트
+      router.push(`/moim/${eventId}`);
+    } catch (error) {
+      console.error('Error creating moim:', error);
+      console.error('Error details:', error instanceof Error ? error.message : String(error));
+      // 에러 발생 시에도 기존 방식으로 폴백
+      const eventId = crypto.randomUUID();
+      router.push(`/moim/${eventId}`);
+    }
   };
 
   return (
@@ -42,5 +66,6 @@ export default function NewEventPage() {
     </div>
   );
 }
+
 
 
