@@ -56,6 +56,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Overlap",
   description: "겹치는 시간대를 빠르게 찾는 약속 잡기 서비스",
+  icons: {
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/favicon.png",
+  },
 };
 
 export default function RootLayout({

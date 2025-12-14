@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function MoimPage() {
+function MoimPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
@@ -34,5 +34,21 @@ export default function MoimPage() {
         <p className="text-slate-600">로딩 중...</p>
       </div>
     </div>
+  );
+}
+
+export default function MoimPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-[#FAF9F6]">
+          <div className="text-center">
+            <p className="text-slate-600">로딩 중...</p>
+          </div>
+        </div>
+      }
+    >
+      <MoimPageContent />
+    </Suspense>
   );
 }

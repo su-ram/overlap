@@ -305,7 +305,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
     }
   };
 
-  const handleParticipantClick = (index: number, buddyId?: string) => {
+  const handleParticipantClick = (index: number, buddyId?: number | string) => {
     // 선택 가능한 개수는 1개로 제한
     if (selectedParticipantIndices.has(index)) {
       // 이미 선택된 참여자를 다시 클릭하면 제거
@@ -365,7 +365,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       const dateStr = `${year}-${month}-${day}`;
 
       // 모임 + 버디 조합으로 해당 날짜의 slot이 존재하는지 확인
-      const slotExists = await checkSlotExists(dateStr, selectedBuddyId);
+      const slotExists = await checkSlotExists(dateStr, String(selectedBuddyId));
 
       if (slotExists) {
         // 모임 + 버디 조합의 slot이 존재하면 삭제 (토글)
