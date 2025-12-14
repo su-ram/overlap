@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { CalendarHeatmap } from "@/components/calendar/CalendarHeatmap";
 import { ParticipantCard } from "@/components/event/ParticipantCard";
 import { TopTime } from "@/components/event/TopTime";
@@ -47,6 +47,31 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
   const [currentCalendarYear, setCurrentCalendarYear] = useState<number>(new Date().getFullYear());
   const [currentCalendarMonth, setCurrentCalendarMonth] = useState<number>(new Date().getMonth());
   const [showOnlyMyVotes, setShowOnlyMyVotes] = useState<boolean>(false);
+  const [slotList, setSlotList] = useState<Array<{
+    date: string;
+    dateObj?: Date;
+    votes?: number;
+  }>>([]);
+  // 모바일에서는 기본적으로 닫혀있고, 데스크톱에서는 열려있도록
+  const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState<boolean>(false);
+  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState<boolean>(false);
+
+  // 데스크톱에서는 사이드바를 기본적으로 열어두기
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) {
+        setIsLeftSidebarOpen(true);
+        setIsRightSidebarOpen(true);
+      } else {
+        setIsLeftSidebarOpen(false);
+        setIsRightSidebarOpen(false);
+      }
+    };
+
+    handleResize(); // 초기 설정
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // params에서 id 추출 (Promise 또는 동기)
   useEffect(() => {
@@ -194,21 +219,33 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
     return availabilityData;
   }, [moimData?.slots, daysInCurrentMonth, currentCalendarYear, currentCalendarMonth, showOnlyMyVotes, selectedBuddyId]);
 
-  // slot 데이터를 TopTime 컴포넌트 형식으로 변환 (pick 내림차순 정렬)
-  const slotList = useMemo(() => {
-    if (!moimData?.slots) return [];
-    
-    const dayLabels = ["일", "월", "화", "수", "목", "금", "토"];
-    
-    return moimData.slots
-      .map((slot) => {
+  // Top 시간 리스트 조회 함수 (재사용 가능하도록 분리)
+  const fetchTopTimeslots = useCallback(async () => {
+    if (!moimId) return;
+
+    try {
+      const response = await fetch(
+        `/api/top-timeslots?moimId=${moimId}&year=${currentCalendarYear}&month=${currentCalendarMonth + 1}`
+      );
+      
+      if (!response.ok) {
+        console.error("Failed to fetch top timeslots");
+        setSlotList([]);
+        return;
+      }
+
+      const data = await response.json();
+      const slots = data.slots || [];
+      
+      const dayLabels = ["일", "월", "화", "수", "목", "금", "토"];
+      
+      const formattedSlots = slots.map((slot: any) => {
         let dateObj: Date | undefined;
-        let dateStr = slot.date || "";
+        let dateStr = "";
         
-        // date 문자열이 있으면 Date 객체로 변환
+        // slot에서 date 정보 추출 (RPC 함수 반환 형식에 따라 조정 필요)
         if (slot.date) {
           try {
-            // 다양한 날짜 형식 처리
             dateObj = new Date(slot.date);
             if (!isNaN(dateObj.getTime())) {
               const month = dateObj.getMonth() + 1;
@@ -217,25 +254,28 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
               dateStr = `${month}/${day} (${dayLabels[dayOfWeek]})`;
             }
           } catch (e) {
-            // 날짜 파싱 실패 시 원본 문자열 사용
+            console.warn("Failed to parse date:", slot.date);
           }
         }
         
         return {
           date: dateStr,
           dateObj,
-          votes: slot.pick || 0, // pick을 votes로 매핑 (기본값 0)
-          start_time: slot.begin, // begin을 start_time으로 매핑
-          end_time: slot.end, // end를 end_time으로 매핑
+          votes: slot.vote_count || slot.pick || slot.votes || 0,
         };
-      })
-      .sort((a, b) => {
-        // pick 내림차순 정렬 (votes가 높은 순서대로)
-        const pickA = a.votes || 0;
-        const pickB = b.votes || 0;
-        return pickB - pickA;
       });
-  }, [moimData?.slots]);
+      
+      setSlotList(formattedSlots);
+    } catch (error) {
+      console.error("Error fetching top timeslots:", error);
+      setSlotList([]);
+    }
+  }, [moimId, currentCalendarYear, currentCalendarMonth]);
+
+  // 캘린더 year/month 변경 시 top 리스트 조회
+  useEffect(() => {
+    fetchTopTimeslots();
+  }, [fetchTopTimeslots]);
 
   const handleDateClickFromSidebar = (date: Date) => {
     const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
@@ -252,6 +292,8 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
         const data = await response.json();
         setMoimData(data);
       }
+      // 모임 데이터 새로고침 후 top 리스트도 재조회
+      await fetchTopTimeslots();
     } catch (error) {
       console.error("Error refreshing moim data:", error);
     }
@@ -429,11 +471,33 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
 
   return (
     <div className="relative min-h-screen">
+      {/* 모바일 오버레이 */}
+      {(isLeftSidebarOpen || isRightSidebarOpen) && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-30 md:hidden"
+          onClick={() => {
+            setIsLeftSidebarOpen(false);
+            setIsRightSidebarOpen(false);
+          }}
+        />
+      )}
+
       {/* 좌측 사이드바 - 참여자 */}
-      <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-[#FAF9F6] border-r border-gray-200 shadow-lg">
+      <aside className={`fixed left-0 top-0 z-40 h-screen w-64 bg-[#FAF9F6] border-r border-gray-200 shadow-lg transition-transform duration-300 ease-in-out ${
+        isLeftSidebarOpen ? "translate-x-0" : "-translate-x-full"
+      }`}>
         <div className="flex h-full flex-col p-4">
-          <div className="mb-4">
+          <div className="mb-4 flex items-center justify-between">
             <h2 className="text-base font-semibold text-gray-900 [font-family:var(--font-headline)]">참여자</h2>
+            <button
+              onClick={() => setIsLeftSidebarOpen(false)}
+              className="md:hidden p-1 text-gray-500 hover:text-gray-700"
+              aria-label="사이드바 닫기"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
           
           <div className="flex-1 overflow-y-auto mb-4">
@@ -482,13 +546,26 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       </aside>
 
       {/* 우측 사이드바 - Top 시간 */}
-      <aside className="fixed right-0 top-0 z-40 h-screen w-64 bg-[#FAF9F6] border-l border-white/70 shadow-lg">
+      <aside className={`fixed right-0 top-0 z-40 h-screen w-64 bg-[#FAF9F6] border-l border-white/70 shadow-lg transition-transform duration-300 ease-in-out ${
+        isRightSidebarOpen ? "translate-x-0" : "translate-x-full"
+      }`}>
         <div className="flex h-full flex-col p-3 md:p-4">
-          <div className="mb-6">
-            <h2 className="text-lg font-semibold text-[#333333] [font-family:var(--font-headline)]">Top 시간</h2>
-            <p className="mt-1 text-xs text-[#333333] [font-family:var(--font-body)]">
-              이 날 어때
-            </p>
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-[#333333] [font-family:var(--font-headline)]">Top 시간</h2>
+              <p className="mt-1 text-xs text-[#333333] [font-family:var(--font-body)]">
+                이 날 어때
+              </p>
+            </div>
+            <button
+              onClick={() => setIsRightSidebarOpen(false)}
+              className="md:hidden p-1 text-gray-500 hover:text-gray-700"
+              aria-label="사이드바 닫기"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
           
           <div className="flex-1 overflow-y-auto">
@@ -510,14 +587,61 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       </aside>
 
       {/* 메인 컨텐츠 */}
-      <div className="md:ml-64 md:mr-64 bg-[#FAF9F6]">
+      <div className={`bg-[#FAF9F6] transition-all duration-300 ${
+        isLeftSidebarOpen ? "md:ml-64" : "md:ml-0"
+      } ${isRightSidebarOpen ? "md:mr-64" : "md:mr-0"}`}>
         <div className="relative h-screen px-3 py-6 md:px-4 md:py-8 lg:px-6 lg:py-10 flex flex-col">
+          {/* 모바일 사이드바 토글 버튼 */}
+          <div className="flex items-center gap-2 mb-4 md:hidden">
+            <button
+              onClick={() => setIsLeftSidebarOpen(true)}
+              className="p-2 text-gray-700 hover:bg-gray-100 rounded-md"
+              aria-label="참여자 사이드바 열기"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setIsRightSidebarOpen(true)}
+              className="p-2 text-gray-700 hover:bg-gray-100 rounded-md"
+              aria-label="Top 시간 사이드바 열기"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
+          </div>
+
           {/* 모임 제목 및 토글 */}
           <div className="mb-6 flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-[#333333] [font-family:var(--font-headline)]">
+            <h1 className="text-2xl md:text-3xl font-bold text-[#333333] [font-family:var(--font-headline)]">
               {moimData?.moim_name || "모임"}
             </h1>
             <div className="flex items-center gap-2">
+              {/* 데스크톱 사이드바 토글 버튼 */}
+              <div className="hidden md:flex items-center gap-2">
+                <button
+                  onClick={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)}
+                  className="p-2 text-gray-700 hover:bg-gray-100 rounded-md"
+                  aria-label="참여자 사이드바 토글"
+                  title={isLeftSidebarOpen ? "참여자 사이드바 닫기" : "참여자 사이드바 열기"}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
+                  className="p-2 text-gray-700 hover:bg-gray-100 rounded-md"
+                  aria-label="Top 시간 사이드바 토글"
+                  title={isRightSidebarOpen ? "Top 시간 사이드바 닫기" : "Top 시간 사이드바 열기"}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </button>
+              </div>
               <span className="text-sm text-[#333333] [font-family:var(--font-body)]">
                 내 투표만 보기
               </span>
@@ -531,7 +655,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
               >
                 <span
                   className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    showOnlyMyVotes ? "tranneutral-x-6" : "tranneutral-x-1"
+                    showOnlyMyVotes ? "translate-x-6" : "translate-x-1"
                   }`}
                 />
               </button>
