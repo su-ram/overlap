@@ -1,6 +1,8 @@
  "use client";
 
 import { useState, useEffect } from "react";
+import { buttonPrimary } from "@/colors";
+import { cn } from "@/lib/utils";
 
 type EventFormProps = {
   onSubmit?: (payload: {
@@ -67,7 +69,7 @@ export function EventForm({ onSubmit, onParticipantCountChange }: EventFormProps
         </div>
         <button
           type="submit"
-          className="w-full rounded-lg bg-blue-600 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 [font-family:var(--font-button)]"
+          className={cn(buttonPrimary, "w-full")}
         >
           모임 만들기
         </button>

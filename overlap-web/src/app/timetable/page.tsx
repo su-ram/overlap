@@ -116,7 +116,7 @@ export default function TimetablePlaygroundPage() {
 
   return (
     <div
-      className="min-h-screen bg-white px-6 py-10 font-sans text-slate-900 select-none"
+      className="min-h-screen bg-[#FAF9F6] px-6 py-10 font-sans text-slate-900 select-none"
       onMouseUp={handleUp}
       onMouseLeave={handleUp}
     >

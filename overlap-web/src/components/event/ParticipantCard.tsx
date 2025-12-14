@@ -42,43 +42,49 @@ export function ParticipantCard({ name, index, isEmpty = false, onClick, isSelec
     <div className="w-full">
       <div 
         onClick={isEmpty ? undefined : onClick}
-        className={`flex items-center gap-2 p-1.5 transition-all duration-300 ${
+        className={`flex items-center gap-2 px-3 py-2 rounded-md transition-all duration-300 ${
           isEmpty 
             ? "opacity-40 cursor-not-allowed" 
             : isSelected 
-              ? "bg-stone-50 cursor-pointer" 
-              : "hover:bg-slate-50 cursor-pointer"
+              ? "bg-transparent cursor-pointer scale-[1.02] shadow-sm" 
+              : "hover:bg-gray-50 cursor-pointer"
         }`}
       >
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
-            isEmpty ? "bg-slate-200 text-slate-400" : colorClass
-          }`}
-        >
-          {initials}
-        </div>
         {name && (
-          <div className="flex-1 min-w-0">
-            <div className={`text-xs font-semibold [font-family:var(--font-body)] ${
-              isEmpty ? "text-slate-400" : "text-slate-800"
+          <div className="flex-1 min-w-0 flex items-center gap-2">
+            <div className={`text-sm font-normal [font-family:var(--font-body)] ${
+              isEmpty 
+                ? "text-gray-500" 
+                : "text-gray-900"
             }`}>
               {name}
             </div>
+            {isSelected && !isEmpty && (
+              <div className="inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-medium [font-family:var(--font-body)] shrink-0"
+                style={{
+                  backgroundColor: '#1F2937',
+                  borderColor: '#111827',
+                  color: '#FFFFFF'
+                }}
+              >
+                me
+              </div>
+            )}
           </div>
         )}
       </div>
       
       {/* 드롭다운: 선택되었을 때 투표한 날짜 목록 표시 */}
       {isSelected && !isEmpty && votedDates.length > 0 && (
-        <div className="mt-1 ml-12 border-l-2 border-slate-200 pl-2 py-1.5">
-          <div className="text-xs font-semibold text-slate-600 mb-2 [font-family:var(--font-body)]">
+        <div className="mt-1 ml-3 border-l-2 border-gray-200 pl-3 py-1.5">
+          <div className="text-xs font-medium text-gray-600 mb-2 [font-family:var(--font-body)]">
             투표한 날짜 ({votedDates.length}일)
           </div>
           <div className="flex flex-col gap-1.5">
             {votedDates.map((date, idx) => (
               <div
                 key={idx}
-                className="text-xs text-slate-700 [font-family:var(--font-body)] text-left"
+                className="text-xs text-gray-700 [font-family:var(--font-body)] text-left"
               >
                 {formatDate(date)}
               </div>

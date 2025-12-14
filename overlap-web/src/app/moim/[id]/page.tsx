@@ -1,180 +1,557 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { CalendarHeatmap } from "@/components/calendar/CalendarHeatmap";
 import { ParticipantCard } from "@/components/event/ParticipantCard";
 import { TopTime } from "@/components/event/TopTime";
+import { buttonPrimary, buttonSecondary } from "@/colors";
+import { cn } from "@/lib/utils";
 
-export default function EventPage({ params }: { params: { id: string } }) {
+type Buddy = {
+  id: number; // bigint
+  moim: string; // UUID
+  name?: string;
+  created_at?: string;
+  [key: string]: any;
+};
+
+type Slot = {
+  id: number; // bigint
+  moim: string; // UUID
+  buddy?: number; // bigint (buddy id)
+  date?: string; // date
+  begin?: string; // time without time zone
+  end?: string; // time without time zone (예약어)
+  pick?: number; // bigint (투표 수)
+  created_at?: string;
+  [key: string]: any;
+};
+
+type MoimData = {
+  id: string;
+  moim_name?: string;
+  buddies: Buddy[];
+  slots: Slot[];
+  [key: string]: any;
+};
+
+export default function EventPage({ params }: { params: Promise<{ id: string }> | { id: string } }) {
+  const [moimId, setMoimId] = useState<string | null>(null);
+  const [moimData, setMoimData] = useState<MoimData | null>(null);
+  const [loading, setLoading] = useState(true);
   const [selectedDateKey, setSelectedDateKey] = useState<string | undefined>();
   const [selectedParticipantIndices, setSelectedParticipantIndices] = useState<Set<number>>(new Set());
   const [focusedDateKeys, setFocusedDateKeys] = useState<Set<string>>(new Set());
+  const [newMemberName, setNewMemberName] = useState<string>("");
+  const [isAddingMember, setIsAddingMember] = useState(false);
+  const [currentCalendarYear, setCurrentCalendarYear] = useState<number>(new Date().getFullYear());
+  const [currentCalendarMonth, setCurrentCalendarMonth] = useState<number>(new Date().getMonth());
+  const [showOnlyMyVotes, setShowOnlyMyVotes] = useState<boolean>(false);
 
-  // 한 달의 날짜 수 계산
+  // params에서 id 추출 (Promise 또는 동기)
+  useEffect(() => {
+    const extractId = async () => {
+      if (params instanceof Promise) {
+        const resolvedParams = await params;
+        setMoimId(resolvedParams.id);
+      } else {
+        setMoimId(params.id);
+      }
+    };
+    extractId();
+  }, [params]);
+
+  // moim 정보 가져오기
+  useEffect(() => {
+    // moimId가 유효한지 확인
+    if (!moimId || moimId === "undefined" || moimId === "null") {
+      setLoading(false);
+      return;
+    }
+
+    const fetchMoimData = async () => {
+      try {
+        console.log("Fetching moim data for id:", moimId);
+        const response = await fetch(`/api/moim?id=${moimId}`);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || "Failed to fetch moim data");
+        }
+        const data = await response.json();
+        console.log("Moim data fetched:", data);
+        setMoimData(data);
+      } catch (error) {
+        console.error("Error fetching moim data:", error);
+        setMoimData(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMoimData();
+  }, [moimId]);
+
+  // 캘린더에서 보고 있는 달의 날짜 수 계산
   const daysInCurrentMonth = useMemo(() => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    return new Date(year, month + 1, 0).getDate();
-  }, []);
+    return new Date(currentCalendarYear, currentCalendarMonth + 1, 0).getDate();
+  }, [currentCalendarYear, currentCalendarMonth]);
 
-  // 해당 월의 모든 날짜 생성
-  const monthDates = useMemo(() => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    const dayLabels = ["일", "월", "화", "수", "목", "금", "토"];
-    
-    const dates = [];
-    for (let day = 1; day <= daysInCurrentMonth; day++) {
-      const date = new Date(year, month, day);
-      const dayOfWeek = date.getDay();
-      const label = dayLabels[dayOfWeek];
-      const dateStr = `${month + 1}/${day} (${label})`;
-      
-      dates.push({
-        date: dateStr,
-        dateObj: date,
-        votes: Math.floor(Math.random() * 10), // 예시 투표 수
+  // buddy 리스트에서 참여자 이름 추출
+  const buddyList = useMemo(() => {
+    return moimData?.buddies || [];
+  }, [moimData?.buddies]);
+
+  // 선택된 참여자 ID 가져오기 (첫 번째 선택된 참여자)
+  const selectedBuddyId = useMemo(() => {
+    if (selectedParticipantIndices.size === 0) return null;
+    const firstIndex = Array.from(selectedParticipantIndices)[0];
+    const buddy = buddyList[firstIndex];
+    return buddy?.id || null;
+  }, [selectedParticipantIndices, buddyList]);
+
+  // "내 투표만 보기"가 on일 때 선택된 참여자가 투표한 날짜 키 계산
+  const myVotedDateKeys = useMemo(() => {
+    if (!showOnlyMyVotes || !selectedBuddyId || !moimData?.slots) {
+      return new Set<string>();
+    }
+
+    const dateKeys = new Set<string>();
+    const year = currentCalendarYear;
+    const month = currentCalendarMonth;
+
+    moimData.slots.forEach((slot) => {
+      if (!slot.date) return;
+      const slotBuddyId = slot.buddy ? Number(slot.buddy) : null;
+      if (slotBuddyId !== selectedBuddyId) return;
+
+      try {
+        const slotDate = new Date(slot.date);
+        if (
+          slotDate.getFullYear() === year &&
+          slotDate.getMonth() === month
+        ) {
+          const dateKey = `${slotDate.getFullYear()}-${slotDate.getMonth()}-${slotDate.getDate()}`;
+          dateKeys.add(dateKey);
+        }
+      } catch (e) {
+        console.warn("Failed to parse slot date:", slot.date);
+      }
+    });
+
+    return dateKeys;
+  }, [showOnlyMyVotes, selectedBuddyId, moimData?.slots, currentCalendarYear, currentCalendarMonth]);
+
+  // slot 데이터를 캘린더에 매핑 (날짜별 투표 수 집계) - 캘린더에서 보고 있는 달 기준
+  const calendarAvailabilityData = useMemo(() => {
+    if (!moimData?.slots) {
+      return Array.from({ length: daysInCurrentMonth }, () => 0);
+    }
+
+    // 캘린더에서 현재 보고 있는 달/년도 사용
+    const year = currentCalendarYear;
+    const month = currentCalendarMonth;
+
+    // 토글이 on이고 선택된 참여자가 있으면 해당 참여자의 슬롯만 필터링
+    let filteredSlots = moimData.slots;
+    if (showOnlyMyVotes && selectedBuddyId) {
+      filteredSlots = moimData.slots.filter((slot) => {
+        const slotBuddyId = slot.buddy ? Number(slot.buddy) : null;
+        return slotBuddyId === selectedBuddyId;
       });
     }
+
+    // 날짜별로 pick 값 합산
+    const dateVotesMap = new Map<number, number>();
+
+    filteredSlots.forEach((slot) => {
+      if (!slot.date) return;
+
+      try {
+        const slotDate = new Date(slot.date);
+        // 캘린더에서 보고 있는 달의 날짜인지 확인 (date 기준)
+        if (
+          slotDate.getFullYear() === year &&
+          slotDate.getMonth() === month
+        ) {
+          const day = slotDate.getDate();
+          const currentVotes = dateVotesMap.get(day) || 0;
+          // pick 값이 있으면 합산 (pick은 bigint이므로 number로 변환)
+          const pickValue = slot.pick ? Number(slot.pick) : 0;
+          dateVotesMap.set(day, currentVotes + pickValue);
+        }
+      } catch (e) {
+        // 날짜 파싱 실패 시 무시
+        console.warn("Failed to parse slot date:", slot.date);
+      }
+    });
+
+    // 날짜 인덱스(1-based)로 배열 생성
+    const availabilityData: number[] = [];
+    for (let day = 1; day <= daysInCurrentMonth; day++) {
+      availabilityData.push(dateVotesMap.get(day) || 0);
+    }
+
+    return availabilityData;
+  }, [moimData?.slots, daysInCurrentMonth, currentCalendarYear, currentCalendarMonth, showOnlyMyVotes, selectedBuddyId]);
+
+  // slot 데이터를 TopTime 컴포넌트 형식으로 변환 (pick 내림차순 정렬)
+  const slotList = useMemo(() => {
+    if (!moimData?.slots) return [];
     
-    // 투표 수 기준으로 정렬 (내림차순)
-    return dates.sort((a, b) => (b.votes ?? 0) - (a.votes ?? 0));
-  }, [daysInCurrentMonth]);
+    const dayLabels = ["일", "월", "화", "수", "목", "금", "토"];
+    
+    return moimData.slots
+      .map((slot) => {
+        let dateObj: Date | undefined;
+        let dateStr = slot.date || "";
+        
+        // date 문자열이 있으면 Date 객체로 변환
+        if (slot.date) {
+          try {
+            // 다양한 날짜 형식 처리
+            dateObj = new Date(slot.date);
+            if (!isNaN(dateObj.getTime())) {
+              const month = dateObj.getMonth() + 1;
+              const day = dateObj.getDate();
+              const dayOfWeek = dateObj.getDay();
+              dateStr = `${month}/${day} (${dayLabels[dayOfWeek]})`;
+            }
+          } catch (e) {
+            // 날짜 파싱 실패 시 원본 문자열 사용
+          }
+        }
+        
+        return {
+          date: dateStr,
+          dateObj,
+          votes: slot.pick || 0, // pick을 votes로 매핑 (기본값 0)
+          start_time: slot.begin, // begin을 start_time으로 매핑
+          end_time: slot.end, // end를 end_time으로 매핑
+        };
+      })
+      .sort((a, b) => {
+        // pick 내림차순 정렬 (votes가 높은 순서대로)
+        const pickA = a.votes || 0;
+        const pickB = b.votes || 0;
+        return pickB - pickA;
+      });
+  }, [moimData?.slots]);
 
   const handleDateClickFromSidebar = (date: Date) => {
     const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
     setSelectedDateKey(dateKey);
   };
 
-  // 참여자별 투표한 날짜 데이터 (예시)
-  const participantVotes = useMemo(() => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    const participants = ["김수람", "김석현", "오현준"];
+  // 모임 데이터 새로고침
+  const refreshMoimData = async () => {
+    if (!moimId) return;
     
-    const votes: Record<number, Set<string>> = {};
-    participants.forEach((_, index) => {
-      const dateKeys = new Set<string>();
-      // 각 참여자가 랜덤하게 3-7개의 날짜에 투표했다고 가정
-      const voteCount = Math.floor(Math.random() * 5) + 3;
-      for (let i = 0; i < voteCount; i++) {
-        const day = Math.floor(Math.random() * daysInCurrentMonth) + 1;
-        const date = new Date(year, month, day);
-        const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-        dateKeys.add(dateKey);
+    try {
+      const response = await fetch(`/api/moim?id=${moimId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setMoimData(data);
       }
-      votes[index] = dateKeys;
-    });
-    
-    return votes;
-  }, [daysInCurrentMonth]);
-
-  // 참여자별 투표한 날짜를 Date 배열로 변환
-  const participantVotesDates = useMemo(() => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    const dates: Record<number, Date[]> = {};
-    
-    Object.entries(participantVotes).forEach(([indexStr, dateKeys]) => {
-      const index = parseInt(indexStr);
-      dates[index] = Array.from(dateKeys).map(dateKey => {
-        const [y, m, d] = dateKey.split('-').map(Number);
-        return new Date(y, m, d);
-      }).sort((a, b) => a.getDate() - b.getDate());
-    });
-    
-    return dates;
-  }, [participantVotes]);
-
-  const handleParticipantClick = (index: number, name?: string) => {
-    const newSelectedIndices = new Set(selectedParticipantIndices);
-    
-    if (newSelectedIndices.has(index)) {
-      // 이미 선택된 참여자를 다시 클릭하면 제거
-      newSelectedIndices.delete(index);
-    } else {
-      // 새로운 참여자 추가
-      newSelectedIndices.add(index);
+    } catch (error) {
+      console.error("Error refreshing moim data:", error);
     }
-    
-    setSelectedParticipantIndices(newSelectedIndices);
-    
-    // 선택된 모든 참여자의 날짜를 합쳐서 표시
-    const allFocusedDates = new Set<string>();
-    newSelectedIndices.forEach(idx => {
-      const votes = participantVotes[idx] || new Set();
-      votes.forEach(dateKey => allFocusedDates.add(dateKey));
-    });
-    setFocusedDateKeys(allFocusedDates);
   };
 
+  // 참여자 추가 핸들러
+  const handleAddMember = async () => {
+    if (!moimId || !newMemberName.trim()) return;
+
+    setIsAddingMember(true);
+    try {
+      const response = await fetch("/api/member", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          moimId: moimId,
+          memberName: newMemberName.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error || "Failed to add member";
+        
+        // 중복 에러인 경우 (409 Conflict)
+        if (response.status === 409) {
+          alert(errorMessage);
+          return;
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      // 입력 필드 초기화
+      setNewMemberName("");
+      
+      // 모임 데이터 새로고침 (buddy list 다시 가져오기)
+      await refreshMoimData();
+    } catch (error) {
+      console.error("Error adding member:", error);
+      alert(error instanceof Error ? error.message : "참여자 추가에 실패했습니다. 다시 시도해주세요.");
+    } finally {
+      setIsAddingMember(false);
+    }
+  };
+
+  // Enter 키 핸들러
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && newMemberName.trim()) {
+      handleAddMember();
+    }
+  };
+
+  const handleParticipantClick = (index: number, buddyId?: string) => {
+    // 선택 가능한 개수는 1개로 제한
+    if (selectedParticipantIndices.has(index)) {
+      // 이미 선택된 참여자를 다시 클릭하면 제거
+      setSelectedParticipantIndices(new Set());
+      setFocusedDateKeys(new Set());
+    } else {
+      // 새로운 참여자 선택 (기존 선택 해제)
+      setSelectedParticipantIndices(new Set([index]));
+      // TODO: 선택된 참여자의 투표한 날짜를 가져와서 focusedDateKeys에 설정
+      // 현재는 빈 Set으로 설정
+      setFocusedDateKeys(new Set());
+    }
+  };
+
+  // 특정 날짜에 해당 사용자의 slot이 존재하는지 확인 (모임 + 사용자 키)
+  const checkSlotExists = async (dateStr: string, buddyId: string): Promise<boolean> => {
+    if (!moimId || !buddyId) {
+      console.warn("checkSlotExists: moimId or buddyId is missing");
+      return false;
+    }
+
+    try {
+      const response = await fetch(`/api/slot?moimId=${moimId}&buddyId=${buddyId}&date=${dateStr}`);
+      if (!response.ok) {
+        console.warn("checkSlotExists: API response not ok", response.status);
+        return false;
+      }
+
+      const data = await response.json();
+      const exists = (data.slots || []).length > 0;
+      console.log(`checkSlotExists: moim=${moimId}, buddy=${buddyId}, date=${dateStr}, exists=${exists}`);
+      return exists;
+    } catch (error) {
+      console.error("Error checking slot:", error);
+      return false;
+    }
+  };
+
+  // 캘린더 날짜 클릭 핸들러 (토글 기능)
+  const handleCalendarDateClick = async (date: Date) => {
+    // 참여자가 선택되지 않았으면 알림 후 중단
+    if (!selectedBuddyId || selectedParticipantIndices.size === 0) {
+      alert("시간 슬롯을 생성하려면 먼저 참여자를 선택해주세요.");
+      return;
+    }
+
+    if (!moimId) {
+      alert("모임 정보를 불러올 수 없습니다.");
+      return;
+    }
+
+    try {
+      // 날짜를 YYYY-MM-DD 형식으로 변환
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      const dateStr = `${year}-${month}-${day}`;
+
+      // 모임 + 버디 조합으로 해당 날짜의 slot이 존재하는지 확인
+      const slotExists = await checkSlotExists(dateStr, selectedBuddyId);
+
+      if (slotExists) {
+        // 모임 + 버디 조합의 slot이 존재하면 삭제 (토글)
+        console.log(`Deleting slot: moim=${moimId}, buddy=${selectedBuddyId}, date=${dateStr}`);
+        const deleteResponse = await fetch(`/api/slot?moimId=${moimId}&buddyId=${selectedBuddyId}&date=${dateStr}`, {
+          method: "DELETE",
+        });
+
+        if (!deleteResponse.ok) {
+          const errorData = await deleteResponse.json().catch(() => ({}));
+          throw new Error(errorData.error || "Failed to delete slot");
+        }
+      } else {
+        // 모임 + 버디 조합의 slot이 없으면 생성
+        console.log(`Creating slot: moim=${moimId}, buddy=${selectedBuddyId}, date=${dateStr}`);
+        const createResponse = await fetch("/api/slot", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            moimId: moimId,
+            buddyId: selectedBuddyId,
+            date: dateStr,
+            // begin과 end는 선택사항 (현재는 null로 설정)
+          }),
+        });
+
+        if (!createResponse.ok) {
+          const errorData = await createResponse.json().catch(() => ({}));
+          throw new Error(errorData.error || "Failed to create slot");
+        }
+      }
+
+      // 모임 데이터 새로고침 (slot list 다시 가져오기)
+      await refreshMoimData();
+    } catch (error) {
+      console.error("Error toggling slot:", error);
+      alert(error instanceof Error ? error.message : "시간 슬롯 처리에 실패했습니다. 다시 시도해주세요.");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#FAF9F6]">
+        <div className="text-center">
+          <p className="text-[#333333]">로딩 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!moimData) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#FAF9F6]">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-[#333333]">모임을 찾을 수 없습니다</h1>
+          <p className="mt-2 text-[#333333]">존재하지 않는 모임 ID입니다.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="relative min-h-screen bg-white">
+    <div className="relative min-h-screen">
       {/* 좌측 사이드바 - 참여자 */}
-      <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-white border-r border-slate-200 shadow-lg">
-        <div className="flex h-full flex-col p-3 md:p-4">
-          <div className="mb-6">
-            <h2 className="text-lg font-semibold text-slate-900 [font-family:var(--font-headline)]">참여자</h2>
+      <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-[#FAF9F6] border-r border-gray-200 shadow-lg">
+        <div className="flex h-full flex-col p-4">
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-gray-900 [font-family:var(--font-headline)]">참여자</h2>
           </div>
           
-          <div className="flex-1 overflow-y-auto">
-            <div className="flex flex-col gap-2">
-              {Array.from({ length: 10 }).map((_, index) => {
-                const participant = ["김수람", "김석현", "오현준"][index];
-                const votedDates = participantVotesDates[index] || [];
+          <div className="flex-1 overflow-y-auto mb-4">
+            <div className="flex flex-col gap-1">
+              {/* 참여자 목록 */}
+              {buddyList.map((buddy, index) => {
+                const buddyName = buddy.name || buddy.member_name || `참여자 ${index + 1}`;
                 
                 return (
                   <ParticipantCard
-                    key={index}
+                    key={buddy.id || index}
                     index={index}
-                    name={participant}
-                    isEmpty={!participant}
-                    onClick={() => !participant ? undefined : handleParticipantClick(index, participant)}
+                    name={buddyName}
+                    isEmpty={false}
+                    onClick={() => handleParticipantClick(index, buddy.id)}
                     isSelected={selectedParticipantIndices.has(index)}
-                    votedDates={votedDates}
+                    votedDates={[]} // TODO: buddy의 투표한 날짜 데이터 연결
                   />
                 );
               })}
+            </div>
+          </div>
+
+          {/* 참여자 추가 입력 필드 - 목록 아래 */}
+          <div className="pt-4 border-t border-gray-200">
+            <div className="relative">
+              <input
+                type="text"
+                value={newMemberName}
+                onChange={(e) => setNewMemberName(e.target.value)}
+                onKeyDown={handleInputKeyDown}
+                placeholder="참여자 이름"
+                className="w-full px-3 pr-20 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-0 focus:border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 [font-family:var(--font-body)]"
+                disabled={isAddingMember}
+              />
+              <button
+                onClick={handleAddMember}
+                disabled={!newMemberName.trim() || isAddingMember}
+                className="absolute right-1 top-1/2 -translate-y-1/2 px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                추가
+              </button>
             </div>
           </div>
         </div>
       </aside>
 
       {/* 우측 사이드바 - Top 시간 */}
-      <aside className="fixed right-0 top-0 z-40 h-screen w-64 bg-white border-l border-slate-200 shadow-lg">
+      <aside className="fixed right-0 top-0 z-40 h-screen w-64 bg-[#FAF9F6] border-l border-white/70 shadow-lg">
         <div className="flex h-full flex-col p-3 md:p-4">
           <div className="mb-6">
-            <h2 className="text-lg font-semibold text-slate-900 [font-family:var(--font-headline)]">Top 시간</h2>
-            <p className="mt-1 text-xs text-slate-500 [font-family:var(--font-body)]">
+            <h2 className="text-lg font-semibold text-[#333333] [font-family:var(--font-headline)]">Top 시간</h2>
+            <p className="mt-1 text-xs text-[#333333] [font-family:var(--font-body)]">
               이 날 어때
             </p>
           </div>
           
           <div className="flex-1 overflow-y-auto">
-            <TopTime 
-              slots={monthDates} 
-              onDateClick={handleDateClickFromSidebar}
-              selectedDateKey={selectedDateKey}
-            />
+            <div className="mt-4">
+              {slotList.length > 0 ? (
+                <TopTime 
+                  slots={slotList} 
+                  onDateClick={handleDateClickFromSidebar}
+                  selectedDateKey={selectedDateKey}
+                />
+              ) : (
+                <div className="text-sm text-[#333333] text-center py-4">
+                  등록된 시간 슬롯이 없습니다
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </aside>
 
       {/* 메인 컨텐츠 */}
-      <div className="md:ml-64 md:mr-64">
+      <div className="md:ml-64 md:mr-64 bg-[#FAF9F6]">
         <div className="relative h-screen px-3 py-6 md:px-4 md:py-8 lg:px-6 lg:py-10 flex flex-col">
+          {/* 모임 제목 및 토글 */}
+          <div className="mb-6 flex items-center justify-between">
+            <h1 className="text-3xl font-bold text-[#333333] [font-family:var(--font-headline)]">
+              {moimData?.moim_name || "모임"}
+            </h1>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-[#333333] [font-family:var(--font-body)]">
+                내 투표만 보기
+              </span>
+              <button
+                onClick={() => setShowOnlyMyVotes(!showOnlyMyVotes)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-white/60 focus:ring-offset-2 backdrop-blur-sm ${
+                  showOnlyMyVotes ? "bg-white/60" : "bg-white/40"
+                }`}
+                disabled={!selectedBuddyId}
+                title={!selectedBuddyId ? "참여자를 선택해주세요" : ""}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    showOnlyMyVotes ? "tranneutral-x-6" : "tranneutral-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
           <div className="w-full flex-1 flex flex-col gap-4 md:gap-6 min-h-0">
             {/* 메인 캘린더 - 히트맵 형태 */}
             <section className="w-full flex-1 min-h-0">
               <CalendarHeatmap 
-                availabilityData={Array.from({ length: daysInCurrentMonth }, () => Math.floor(Math.random() * 10))}
-                maxVotes={10}
+                availabilityData={calendarAvailabilityData}
+                maxVotes={Math.max(...calendarAvailabilityData, 1)}
                 selectedDateKey={selectedDateKey}
                 focusedDateKeys={focusedDateKeys}
+                highlightedDateKeys={showOnlyMyVotes ? myVotedDateKeys : undefined}
+                onDateSelect={handleCalendarDateClick}
+                onMonthChange={(year, month) => {
+                  setCurrentCalendarYear(year);
+                  setCurrentCalendarMonth(month);
+                }}
               />
             </section>
           </div>

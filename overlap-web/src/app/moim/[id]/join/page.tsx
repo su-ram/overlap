@@ -1,6 +1,9 @@
+import { buttonPrimary } from "@/colors";
+import { cn } from "@/lib/utils";
+
 export default function JoinPage({ params }: { params: { id: string } }) {
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-md flex-col gap-6 bg-white px-6 py-12">
+    <div className="mx-auto flex min-h-screen w-full max-w-md flex-col gap-6 bg-[#FAF9F6] px-6 py-12">
       <h1 className="text-2xl font-bold text-slate-900 [font-family:var(--font-headline)]">참여자 닉네임 입력</h1>
       <p className="text-sm text-slate-700 [font-family:var(--font-body)]">
         약속 코드 <span className="font-semibold text-blue-700">{params.id}</span> 에 참여할 닉네임을
@@ -17,7 +20,7 @@ export default function JoinPage({ params }: { params: { id: string } }) {
         </div>
         <button
           type="submit"
-          className="w-full rounded-lg bg-blue-600 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 [font-family:var(--font-button)]"
+          className={cn(buttonPrimary, "w-full")}
         >
           참여하기
         </button>

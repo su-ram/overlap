@@ -121,8 +121,10 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
     font-family: var(--font-body), -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Now", sans-serif;
+    background: linear-gradient(180deg, #FAFAFA 0%, #F6F7F8 100%);
+    min-height: 100vh;
   }
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-headline), "Helvetica Now", -apple-system, BlinkMacSystemFont, sans-serif;
@@ -170,7 +172,25 @@
 }
 
 .animate-star-burst {
-  animation: starBurst 1.2s ease-out forwards;
+  animation: starBurst 0.4s ease-out forwards;
+}
+
+@keyframes starPop {
+  0% {
+    opacity: 0;
+    transform: scale(0) rotate(-180deg);
+  }
+  50% {
+    transform: scale(1.3) rotate(10deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+.animate-star-pop {
+  animation: starPop 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
 }
 
 @import "tailwindcss";
@@ -296,8 +316,10 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
     font-family: var(--font-body), -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Now", sans-serif;
+    background: linear-gradient(180deg, #FAFAFA 0%, #F6F7F8 100%);
+    min-height: 100vh;
   }
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-headline), "Helvetica Now", -apple-system, BlinkMacSystemFont, sans-serif;

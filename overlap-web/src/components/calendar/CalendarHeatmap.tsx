@@ -11,37 +11,24 @@ type CalendarHeatmapProps = {
   selectedDateKey?: string; // 외부에서 선택된 날짜 키
   onDateSelectFromExternal?: (date: Date) => void; // 외부에서 날짜 선택 시 호출
   focusedDateKeys?: Set<string>; // 포커스된 날짜 키들 (참여자가 투표한 날짜)
+  onMonthChange?: (year: number, month: number) => void; // 달 변경 시 호출
+  highlightedDateKeys?: Set<string>; // 하이라이트할 날짜 키들 ("내 투표만 보기" 모드일 때)
 };
 
 const densityClass = (level: number, isSelected: boolean = false) => {
-  if (isSelected) {
-    // 선택된 경우 더 진한 색으로
-    switch (level) {
-      case 4:
-        return "bg-stone-600 text-white";
-      case 3:
-        return "bg-stone-500 text-white";
-      case 2:
-        return "bg-stone-400 text-slate-900";
-      case 1:
-        return "bg-stone-300 text-slate-800";
-      default:
-        return "bg-stone-200 text-slate-700";
-    }
-  }
-  
-  // 기본 색상
+  // 로고 색상 기준 초록색 (green2: light: #C8E6C9, medium: #81C784, deep: #4CAF50)
+  // 투표 수에 따라 초록색의 명도를 조절 - 더 연한 단계로 조정
   switch (level) {
     case 4:
-      return "bg-stone-400 text-slate-900";
+      return "bg-[#81C784] text-white"; // medium green (더 연하게)
     case 3:
-      return "bg-stone-300 text-slate-800";
+      return "bg-[#A5D6A7] text-[#333333]"; // light-medium green
     case 2:
-      return "bg-stone-200 text-slate-700";
+      return "bg-[#C8E6C9] text-[#333333]"; // light green
     case 1:
-      return "bg-stone-100 text-slate-600";
+      return "bg-[#E8F5E9] text-[#333333]"; // very light green
     default:
-      return "bg-slate-50 text-slate-500";
+      return "bg-[#FDFCF8] text-[#333333]"; // 0명은 더 밝고 하얀 아이보리색
   }
 };
 
@@ -52,6 +39,8 @@ export function CalendarHeatmap({
   selectedDateKey,
   onDateSelectFromExternal,
   focusedDateKeys,
+  onMonthChange,
+  highlightedDateKeys,
 }: CalendarHeatmapProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
@@ -59,6 +48,11 @@ export function CalendarHeatmap({
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
+
+  // 달 변경 시 부모 컴포넌트에 알림
+  useEffect(() => {
+    onMonthChange?.(year, month);
+  }, [year, month, onMonthChange]);
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDayOfMonth = new Date(year, month, 1).getDay();
@@ -126,6 +120,11 @@ export function CalendarHeatmap({
     return focusedDateKeys?.has(dateKey) ?? false;
   };
 
+  const isDateHighlighted = (date: Date) => {
+    const dateKey = getDateKey(date);
+    return highlightedDateKeys?.has(dateKey) ?? false;
+  };
+
   // 외부에서 날짜 선택 시 처리
   useEffect(() => {
     if (selectedDateKey) {
@@ -136,63 +135,48 @@ export function CalendarHeatmap({
         return newSet;
       });
       
-      // 애니메이션 트리거
-      setAnimationDateKey(dateKey);
-      setTimeout(() => setAnimationDateKey(null), 1500);
+      // 폭죽 애니메이션 제거
     }
   }, [selectedDateKey]);
 
   const handleDateClick = (date: Date) => {
     const dateKey = getDateKey(date);
-    setSelectedDates((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(dateKey)) {
-        newSet.delete(dateKey);
-      } else {
-        newSet.add(dateKey);
-      }
-      return newSet;
-    });
-    
-    // 클릭할 때마다 폭죽 애니메이션 트리거
-    setAnimationDateKey(null);
-    setTimeout(() => {
-      setAnimationDateKey(dateKey);
-      setTimeout(() => setAnimationDateKey(null), 1500);
-    }, 10);
+    // 테두리 처리를 위한 selected 상태 저장 제거
+    // setSelectedDates 호출하지 않음
+    // 폭죽 애니메이션 제거
     
     onDateSelect?.(date);
   };
 
   return (
-    <div className="w-full h-full bg-white p-2 md:p-3 lg:p-4 flex flex-col">
+    <div className="w-full h-full bg-[#FAF9F6] p-2 md:p-3 lg:p-4 flex flex-col">
       {/* 헤더 */}
       <div className="mb-2 flex items-center justify-between">
         <button
           onClick={goToPreviousMonth}
-          className="p-2 hover:bg-slate-100 transition-colors"
+          className="p-2 hover:bg-white/30 backdrop-blur-sm rounded-lg transition-all"
         >
-          <ChevronLeft className="h-5 w-5 text-slate-600" />
+          <ChevronLeft className="h-5 w-5 text-[#333333]" />
         </button>
-        <h2 className="text-xl font-semibold text-slate-900 [font-family:var(--font-headline)]">
+        <h2 className="text-xl font-semibold text-[#333333] [font-family:var(--font-headline)]">
           {year}년 {monthNames[month]}
         </h2>
         <button
           onClick={goToNextMonth}
-          className="p-2 hover:bg-slate-100 transition-colors"
+          className="p-2 hover:bg-white/30 backdrop-blur-sm rounded-lg transition-all"
         >
-          <ChevronRight className="h-5 w-5 text-slate-600" />
+          <ChevronRight className="h-5 w-5 text-[#333333]" />
         </button>
       </div>
 
       {/* 범례 */}
-      <div className="mb-2 flex items-center justify-center gap-3 text-xs text-slate-600 [font-family:var(--font-body)]">
+      <div className="mb-2 flex items-center justify-center gap-3 text-xs text-[#333333] [font-family:var(--font-body)]">
         <span>0명</span>
         {[0, 1, 2, 3, 4].map((level) => (
           <span
             key={level}
             className={cn(
-              "h-4 w-6 border border-slate-200",
+              "h-4 w-6 border border-[#DDDDDD]",
               densityClass(level),
             )}
           />
@@ -205,7 +189,7 @@ export function CalendarHeatmap({
         {dayLabels.map((day) => (
           <div
             key={day}
-            className="text-center text-sm font-semibold text-slate-600 py-2 [font-family:var(--font-body)]"
+            className="text-center text-sm font-semibold text-[#333333] py-2 [font-family:var(--font-body)]"
           >
             {day}
           </div>
@@ -223,6 +207,7 @@ export function CalendarHeatmap({
         {monthDays.map((dayInfo, dayIndex) => {
           const selected = isDateSelected(dayInfo.date);
           const focused = isDateFocused(dayInfo.date);
+          const highlighted = isDateHighlighted(dayInfo.date);
           const availabilityLevel = getAvailabilityLevel(dayIndex);
           const votes = availabilityData?.[dayIndex] ?? 0;
 
@@ -231,75 +216,21 @@ export function CalendarHeatmap({
               key={dayIndex}
               onClick={() => handleDateClick(dayInfo.date)}
               className={cn(
-                "h-full rounded-none border border-slate-200 text-sm font-medium transition-all [font-family:var(--font-body)] overflow-visible",
-                "hover:opacity-80",
-                focused && !selected
+                "h-full rounded-sm border border-gray-200/50 text-sm font-medium transition-all [font-family:var(--font-body)] overflow-visible backdrop-blur-[6px]",
+                "hover:opacity-80 active:scale-[0.95] active:translate-y-0.5",
+                "transform transition-transform duration-150 ease-out",
+                highlighted
+                  ? "bg-white/60 backdrop-blur-md border-white/60 text-[#333333]"
+                  : focused && !selected
                   ? "bg-blue-100/70 border-blue-300" 
                   : "",
-                selected
-                  ? "border-slate-400 border-2"
-                  : "",
-                densityClass(availabilityLevel, selected)
+                // highlighted가 아닐 때만 densityClass 적용
+                !highlighted && densityClass(availabilityLevel, false)
               )}
               title={`${dayInfo.dateStr} - ${votes}명 투표`}
             >
               <div className="relative flex flex-col items-start justify-start h-full p-1 w-full">
                 <span>{dayInfo.day}</span>
-                {votes > 0 && (
-                  <span className="text-[10px] opacity-80 mt-1">{votes}</span>
-                )}
-                
-                {/* 폭죽 애니메이션 효과 */}
-                {animationDateKey === getDateKey(dayInfo.date) && (
-                  <div className="absolute inset-0 pointer-events-none overflow-visible">
-                    {/* 노란색/금색 별 */}
-                    {Array.from({ length: 16 }).map((_, i) => (
-                      <div
-                        key={`yellow-${i}`}
-                        className={`absolute left-0 top-0 bg-amber-400 rounded-full animate-star-burst ${
-                          i % 3 === 0 ? 'w-8 h-8' : i % 3 === 1 ? 'w-7 h-7' : 'w-6 h-6'
-                        }`}
-                        style={{
-                          '--star-angle': `${(i * 360) / 16}deg`,
-                          '--star-delay': `${i * 0.02}s`,
-                        } as React.CSSProperties}
-                      />
-                    ))}
-                    {/* 연두색 폭죽 */}
-                    {Array.from({ length: 6 }).map((_, i) => (
-                      <div
-                        key={`green-${i}`}
-                        className="absolute left-0 top-0 w-6 h-6 bg-green-400 rounded-full animate-star-burst"
-                        style={{
-                          '--star-angle': `${(i * 360) / 6 + 15}deg`,
-                          '--star-delay': `${i * 0.04}s`,
-                        } as React.CSSProperties}
-                      />
-                    ))}
-                    {/* 핑크색 폭죽 */}
-                    {Array.from({ length: 6 }).map((_, i) => (
-                      <div
-                        key={`pink-${i}`}
-                        className="absolute left-0 top-0 w-6 h-6 bg-pink-400 rounded-full animate-star-burst"
-                        style={{
-                          '--star-angle': `${(i * 360) / 6 + 30}deg`,
-                          '--star-delay': `${i * 0.04 + 0.1}s`,
-                        } as React.CSSProperties}
-                      />
-                    ))}
-                    {/* 주황색 폭죽 */}
-                    {Array.from({ length: 6 }).map((_, i) => (
-                      <div
-                        key={`orange-${i}`}
-                        className="absolute left-0 top-0 w-6 h-6 bg-orange-400 rounded-full animate-star-burst"
-                        style={{
-                          '--star-angle': `${(i * 360) / 6 + 45}deg`,
-                          '--star-delay': `${i * 0.04 + 0.2}s`,
-                        } as React.CSSProperties}
-                      />
-                    ))}
-                  </div>
-                )}
               </div>
             </button>
           );

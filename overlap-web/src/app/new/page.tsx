@@ -50,7 +50,7 @@ export default function NewEventPage() {
   };
 
   return (
-    <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 overflow-hidden bg-[#F5F5DC] px-6 py-10">
+    <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 overflow-hidden bg-[#FAF9F6] px-6 py-10">
       {/* 배경 카드 그리드 */}
       <BackgroundCardGrid activeCount={participantCount} />
       
