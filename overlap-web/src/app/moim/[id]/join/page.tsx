@@ -1,3 +1,4 @@
+import { motion } from "framer-motion";
 import { buttonPrimary } from "@/colors";
 import { cn } from "@/lib/utils";
 
@@ -18,12 +19,25 @@ export default function JoinPage({ params }: { params: { id: string } }) {
             required
           />
         </div>
-        <button
+        <motion.button
           type="submit"
           className={cn(buttonPrimary, "w-full")}
+          whileHover={{ 
+            scale: 1.02,
+            y: -2
+          }}
+          whileTap={{ 
+            scale: 0.98,
+            y: 0
+          }}
+          transition={{ 
+            type: "spring", 
+            stiffness: 400, 
+            damping: 17 
+          }}
         >
           참여하기
-        </button>
+        </motion.button>
       </form>
     </div>
   );

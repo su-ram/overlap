@@ -9,7 +9,7 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        primary: "#22C55E",
+        primary: "rgba(76, 175, 80, 0.9)", // #4CAF50 with 90% opacity
         glass: "rgba(255,255,255,0.6)",
       },
       backdropBlur: {

@@ -28,7 +28,7 @@ const densityClass = (level: number, isSelected: boolean = false) => {
     case 1:
       return "bg-[#E8F5E9] text-[#333333]"; // very light green
     default:
-      return "bg-[#FDFCF8] text-[#333333]"; // 0명은 더 밝고 하얀 아이보리색
+      return "bg-white text-[#333333]"; // 0명은 흰색
   }
 };
 

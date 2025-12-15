@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { motion } from "framer-motion";
 import { CalendarHeatmap } from "@/components/calendar/CalendarHeatmap";
 import { ParticipantCard } from "@/components/event/ParticipantCard";
 import { TopTime } from "@/components/event/TopTime";
 import { buttonPrimary, buttonSecondary } from "@/colors";
 import { cn } from "@/lib/utils";
+import { Loader } from "@/components/ui/Loader";
 
 type Buddy = {
   id: number; // bigint
@@ -451,8 +453,9 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#FAF9F6]">
-        <div className="text-center">
-          <p className="text-[#333333]">로딩 중...</p>
+        <div className="text-center flex flex-col items-center gap-4">
+          <Loader size="lg" />
+          <p className="text-[#333333] [font-family:var(--font-body)]">로딩 중...</p>
         </div>
       </div>
     );
@@ -488,7 +491,12 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       }`}>
         <div className="flex h-full flex-col p-4">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-base font-semibold text-gray-900 [font-family:var(--font-headline)]">참여자</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-semibold text-gray-900 [font-family:var(--font-headline)]">참여자</h2>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-white border border-gray-200 text-gray-700 [font-family:var(--font-body)]">
+                {buddyList.length}명
+              </span>
+            </div>
             <button
               onClick={() => setIsLeftSidebarOpen(false)}
               className="md:hidden p-1 text-gray-500 hover:text-gray-700"
@@ -501,24 +509,28 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
           </div>
           
           <div className="flex-1 overflow-y-auto mb-4">
-            <div className="flex flex-col gap-1">
+            <ul className="flex flex-col border border-gray-200 rounded-lg bg-white overflow-hidden">
               {/* 참여자 목록 */}
               {buddyList.map((buddy, index) => {
                 const buddyName = buddy.name || buddy.member_name || `참여자 ${index + 1}`;
                 
                 return (
-                  <ParticipantCard
-                    key={buddy.id || index}
-                    index={index}
-                    name={buddyName}
-                    isEmpty={false}
-                    onClick={() => handleParticipantClick(index, buddy.id)}
-                    isSelected={selectedParticipantIndices.has(index)}
-                    votedDates={[]} // TODO: buddy의 투표한 날짜 데이터 연결
-                  />
+                  <li 
+                    key={buddy.id || index} 
+                    className={index > 0 ? "border-t border-gray-200" : ""}
+                  >
+                    <ParticipantCard
+                      index={index}
+                      name={buddyName}
+                      isEmpty={false}
+                      onClick={() => handleParticipantClick(index, buddy.id)}
+                      isSelected={selectedParticipantIndices.has(index)}
+                      votedDates={[]} // TODO: buddy의 투표한 날짜 데이터 연결
+                    />
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           </div>
 
           {/* 참여자 추가 입력 필드 - 목록 아래 */}
@@ -533,13 +545,26 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                 className="w-full px-3 pr-20 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-0 focus:border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 [font-family:var(--font-body)]"
                 disabled={isAddingMember}
               />
-              <button
+              <motion.button
                 onClick={handleAddMember}
                 disabled={!newMemberName.trim() || isAddingMember}
                 className="absolute right-1 top-1/2 -translate-y-1/2 px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                whileHover={{ 
+                  scale: 1.05,
+                  y: -1
+                }}
+                whileTap={{ 
+                  scale: 0.95,
+                  y: 0
+                }}
+                transition={{ 
+                  type: "spring", 
+                  stiffness: 400, 
+                  damping: 17 
+                }}
               >
                 추가
-              </button>
+              </motion.button>
             </div>
           </div>
         </div>

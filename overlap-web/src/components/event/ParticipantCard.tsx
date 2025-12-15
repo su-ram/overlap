@@ -30,6 +30,14 @@ export function ParticipantCard({ name, index, isEmpty = false, onClick, isSelec
 
   const colorClass = colors[index % colors.length];
 
+  const emojis = [
+    "😊", "🎉", "🌟", "🚀", "🎨", "🎵", "🎮", "📚",
+    "🏃", "🍕", "☕", "🎯", "💡", "🔥", "⭐", "🌈",
+    "🎪", "🎭", "🎬", "🎤", "🎸", "🎹", "🎺", "🎻"
+  ];
+
+  const emoji = emojis[index % emojis.length];
+
   const formatDate = (date: Date) => {
     const month = date.getMonth() + 1;
     const day = date.getDate();
@@ -42,16 +50,17 @@ export function ParticipantCard({ name, index, isEmpty = false, onClick, isSelec
     <div className="w-full">
       <div 
         onClick={isEmpty ? undefined : onClick}
-        className={`flex items-center gap-2 px-3 py-2 rounded-md transition-all duration-300 ${
+        className={`flex items-center gap-2 px-3 py-2 transition-all duration-300 ${
           isEmpty 
             ? "opacity-40 cursor-not-allowed" 
             : isSelected 
-              ? "bg-transparent cursor-pointer scale-[1.02] shadow-sm" 
+              ? "bg-gray-50 cursor-pointer" 
               : "hover:bg-gray-50 cursor-pointer"
         }`}
       >
         {name && (
           <div className="flex-1 min-w-0 flex items-center gap-2">
+            <span className="text-lg flex-shrink-0">{emoji}</span>
             <div className={`text-sm font-normal [font-family:var(--font-body)] ${
               isEmpty 
                 ? "text-gray-500" 
@@ -59,17 +68,6 @@ export function ParticipantCard({ name, index, isEmpty = false, onClick, isSelec
             }`}>
               {name}
             </div>
-            {isSelected && !isEmpty && (
-              <div className="inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-medium [font-family:var(--font-body)] shrink-0"
-                style={{
-                  backgroundColor: '#1F2937',
-                  borderColor: '#111827',
-                  color: '#FFFFFF'
-                }}
-              >
-                me
-              </div>
-            )}
           </div>
         )}
       </div>
