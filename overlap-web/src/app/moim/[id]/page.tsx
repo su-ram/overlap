@@ -68,6 +68,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
         setIsLeftSidebarOpen(true);
         setIsRightSidebarOpen(true);
       } else {
+        // 모바일에서는 좌측 사이드바만 닫고, 우측 사이드바는 항상 닫음
         setIsLeftSidebarOpen(false);
         setIsRightSidebarOpen(false);
       }
@@ -519,12 +520,11 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       )}
 
       {/* 모바일 오버레이 */}
-      {(isLeftSidebarOpen || isRightSidebarOpen) && (
+      {isLeftSidebarOpen && (
         <div 
           className="fixed inset-0 bg-black/50 z-30 md:hidden"
           onClick={() => {
             setIsLeftSidebarOpen(false);
-            setIsRightSidebarOpen(false);
           }}
         />
       )}
@@ -543,11 +543,12 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
             </div>
             <button
               onClick={() => setIsLeftSidebarOpen(false)}
-              className="md:hidden p-1 text-gray-500 hover:text-gray-700"
+              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
               aria-label="사이드바 닫기"
+              title="사이드바 닫기"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
           </div>
@@ -628,11 +629,12 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
             </div>
             <button
               onClick={() => setIsRightSidebarOpen(false)}
-              className="md:hidden p-1 text-gray-500 hover:text-gray-700"
+              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
               aria-label="사이드바 닫기"
+              title="사이드바 닫기"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </button>
           </div>
@@ -656,7 +658,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       </aside>
 
       {/* 메인 컨텐츠 */}
-      <div className={`bg-[#FAF9F6] transition-all duration-300 ${
+      <div className={`bg-[#FAF9F6] transition-all duration-300 w-full ${
         isLeftSidebarOpen ? "md:ml-64" : "md:ml-0"
       } ${isRightSidebarOpen ? "md:mr-64" : "md:mr-0"}`}>
         <div className="relative h-screen px-3 py-6 md:px-4 md:py-8 lg:px-6 lg:py-10 flex flex-col">
