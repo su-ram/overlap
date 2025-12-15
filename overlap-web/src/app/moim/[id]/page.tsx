@@ -570,8 +570,8 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
         </div>
       </aside>
 
-      {/* 우측 사이드바 - Top 시간 */}
-      <aside className={`fixed right-0 top-0 z-40 h-screen w-64 bg-[#FAF9F6] border-l border-white/70 shadow-lg transition-transform duration-300 ease-in-out ${
+      {/* 우측 사이드바 - Top 시간 (데스크톱만) */}
+      <aside className={`hidden md:block fixed right-0 top-0 z-40 h-screen w-64 bg-[#FAF9F6] border-l border-white/70 shadow-lg transition-transform duration-300 ease-in-out ${
         isRightSidebarOpen ? "translate-x-0" : "translate-x-full"
       }`}>
         <div className="flex h-full flex-col p-3 md:p-4">
@@ -625,15 +625,6 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-            </button>
-            <button
-              onClick={() => setIsRightSidebarOpen(true)}
-              className="p-2 text-gray-700 hover:bg-gray-100 rounded-md"
-              aria-label="Top 시간 사이드바 열기"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </button>
           </div>
@@ -702,6 +693,31 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                   setCurrentCalendarMonth(month);
                 }}
               />
+            </section>
+
+            {/* 모바일 Top 시간 목록 - 캘린더 아래 */}
+            <section className="md:hidden w-full mt-4">
+              <div className="bg-white border border-gray-200 rounded-lg p-4">
+                <div className="mb-4">
+                  <h2 className="text-lg font-semibold text-[#333333] [font-family:var(--font-headline)]">Top 시간</h2>
+                  <p className="mt-1 text-xs text-[#333333] [font-family:var(--font-body)]">
+                    이 날 어때
+                  </p>
+                </div>
+                <div className="max-h-64 overflow-y-auto">
+                  {slotList.length > 0 ? (
+                    <TopTime 
+                      slots={slotList} 
+                      onDateClick={handleDateClickFromSidebar}
+                      selectedDateKey={selectedDateKey}
+                    />
+                  ) : (
+                    <div className="text-sm text-[#333333] text-center py-4">
+                      등록된 시간 슬롯이 없습니다
+                    </div>
+                  )}
+                </div>
+              </div>
             </section>
           </div>
         </div>

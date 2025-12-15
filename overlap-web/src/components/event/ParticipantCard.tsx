@@ -61,10 +61,12 @@ export function ParticipantCard({ name, index, isEmpty = false, onClick, isSelec
         {name && (
           <div className="flex-1 min-w-0 flex items-center gap-2">
             <span className="text-lg flex-shrink-0">{emoji}</span>
-            <div className={`text-sm font-normal [font-family:var(--font-body)] ${
+            <div className={`text-sm [font-family:var(--font-body)] ${
               isEmpty 
-                ? "text-gray-500" 
-                : "text-gray-900"
+                ? "text-gray-500 font-normal" 
+                : isSelected
+                  ? "text-gray-900 font-bold"
+                  : "text-gray-900 font-normal"
             }`}>
               {name}
             </div>
