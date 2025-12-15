@@ -57,6 +57,9 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
   // 모바일에서는 기본적으로 닫혀있고, 데스크톱에서는 열려있도록
   const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState<boolean>(false);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState<boolean>(false);
+  const [isUrlCopied, setIsUrlCopied] = useState<boolean>(false);
+  const [showToast, setShowToast] = useState<boolean>(false);
+  const [toastMessage, setToastMessage] = useState<string>("");
 
   // 데스크톱에서는 사이드바를 기본적으로 열어두기
   useEffect(() => {
@@ -301,6 +304,29 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
     }
   };
 
+  // Toast 메시지 표시 헬퍼 함수
+  const showToastMessage = (message: string) => {
+    setToastMessage(message);
+    setShowToast(true);
+    setTimeout(() => {
+      setShowToast(false);
+      setToastMessage("");
+    }, 2000);
+  };
+
+  // URL 복사 핸들러
+  const handleCopyUrl = async () => {
+    try {
+      const currentUrl = window.location.href;
+      await navigator.clipboard.writeText(currentUrl);
+      setIsUrlCopied(true);
+      showToastMessage("URL이 복사되었습니다");
+    } catch (error) {
+      console.error("Failed to copy URL:", error);
+      alert("URL 복사에 실패했습니다.");
+    }
+  };
+
   // 참여자 추가 핸들러
   const handleAddMember = async () => {
     if (!moimId || !newMemberName.trim()) return;
@@ -329,11 +355,17 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
         throw new Error(errorMessage);
       }
 
+      // 참여자 이름 저장 (초기화 전에)
+      const addedMemberName = newMemberName.trim();
+      
       // 입력 필드 초기화
       setNewMemberName("");
       
       // 모임 데이터 새로고침 (buddy list 다시 가져오기)
       await refreshMoimData();
+      
+      // 성공 메시지 표시
+      showToastMessage(`${addedMemberName}님이 추가되었습니다`);
     } catch (error) {
       console.error("Error adding member:", error);
       alert(error instanceof Error ? error.message : "참여자 추가에 실패했습니다. 다시 시도해주세요.");
@@ -474,6 +506,18 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
 
   return (
     <div className="relative min-h-screen">
+      {/* Toast 메시지 */}
+      {showToast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="bg-gray-900 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 [font-family:var(--font-body)]">
+            <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            <span className="text-sm font-medium">{toastMessage}</span>
+          </div>
+        </div>
+      )}
+
       {/* 모바일 오버레이 */}
       {(isLeftSidebarOpen || isRightSidebarOpen) && (
         <div 
@@ -631,9 +675,27 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
 
           {/* 모임 제목 및 토글 */}
           <div className="mb-6 flex items-center justify-between">
-            <h1 className="text-2xl md:text-3xl font-bold text-[#333333] [font-family:var(--font-headline)]">
-              {moimData?.moim_name || "모임"}
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl md:text-3xl font-bold text-[#333333] [font-family:var(--font-headline)]">
+                {moimData?.moim_name || "모임"}
+              </h1>
+              <button
+                onClick={handleCopyUrl}
+                className="p-2 text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                title={isUrlCopied ? "복사됨!" : "URL 복사"}
+                aria-label="URL 복사"
+              >
+                {isUrlCopied ? (
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                )}
+              </button>
+            </div>
             <div className="flex items-center gap-2">
               {/* 데스크톱 사이드바 토글 버튼 */}
               <div className="hidden md:flex items-center gap-2">
