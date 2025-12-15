@@ -13,6 +13,7 @@ type CalendarHeatmapProps = {
   focusedDateKeys?: Set<string>; // 포커스된 날짜 키들 (참여자가 투표한 날짜)
   onMonthChange?: (year: number, month: number) => void; // 달 변경 시 호출
   highlightedDateKeys?: Set<string>; // 하이라이트할 날짜 키들 ("내 투표만 보기" 모드일 때)
+  fixedDateKeys?: Set<string>; // fix된 날짜 키들
 };
 
 const densityClass = (level: number, isSelected: boolean = false) => {
@@ -41,6 +42,7 @@ export function CalendarHeatmap({
   focusedDateKeys,
   onMonthChange,
   highlightedDateKeys,
+  fixedDateKeys,
 }: CalendarHeatmapProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
@@ -123,6 +125,11 @@ export function CalendarHeatmap({
   const isDateHighlighted = (date: Date) => {
     const dateKey = getDateKey(date);
     return highlightedDateKeys?.has(dateKey) ?? false;
+  };
+
+  const isDateFixed = (date: Date) => {
+    const dateKey = getDateKey(date);
+    return fixedDateKeys?.has(dateKey) ?? false;
   };
 
   // 외부에서 날짜 선택 시 처리
@@ -208,6 +215,7 @@ export function CalendarHeatmap({
           const selected = isDateSelected(dayInfo.date);
           const focused = isDateFocused(dayInfo.date);
           const highlighted = isDateHighlighted(dayInfo.date);
+          const fixed = isDateFixed(dayInfo.date);
           const availabilityLevel = getAvailabilityLevel(dayIndex);
           const votes = availabilityData?.[dayIndex] ?? 0;
 
@@ -216,7 +224,7 @@ export function CalendarHeatmap({
               key={dayIndex}
               onClick={() => handleDateClick(dayInfo.date)}
               className={cn(
-                "h-full rounded-sm border border-gray-200/50 text-sm font-medium transition-all [font-family:var(--font-body)] overflow-visible backdrop-blur-[6px]",
+                "h-full rounded-sm border border-gray-200/50 text-sm font-medium transition-all [font-family:var(--font-body)] overflow-visible backdrop-blur-[6px] group",
                 "hover:opacity-80 active:scale-[0.95] active:translate-y-0.5",
                 "transform transition-transform duration-150 ease-out",
                 highlighted
@@ -227,10 +235,22 @@ export function CalendarHeatmap({
                 // highlighted가 아닐 때만 densityClass 적용
                 !highlighted && densityClass(availabilityLevel, false)
               )}
-              title={`${dayInfo.dateStr} - ${votes}명 투표`}
             >
               <div className="relative flex flex-col items-start justify-start h-full p-1 w-full">
-                <span>{dayInfo.day}</span>
+                <div className="flex items-center gap-1">
+                  <span>{dayInfo.day}</span>
+                  {fixed && (
+                    <span className="text-xs">📌</span>
+                  )}
+                </div>
+              </div>
+              {/* Tooltip */}
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-nowrap z-50 [font-family:var(--font-body)]">
+                <span>{votes}명 투표</span>
+                {/* Tooltip 화살표 */}
+                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1">
+                  <div className="w-2 h-2 bg-gray-900 transform rotate-45"></div>
+                </div>
               </div>
             </button>
           );

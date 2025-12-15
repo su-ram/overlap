@@ -52,3 +52,4 @@ export default function MoimPage() {
     </Suspense>
   );
 }
+

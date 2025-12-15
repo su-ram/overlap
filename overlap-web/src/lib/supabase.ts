@@ -19,3 +19,4 @@ export async function fetchTopTimeslots(
   if (error) throw error;
   return data;
 }
+

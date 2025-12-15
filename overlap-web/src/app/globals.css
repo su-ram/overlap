@@ -173,7 +173,7 @@
 
 .animate-star-burst {
   animation: starBurst 0.4s ease-out forwards;
-}
+  }
 
 @keyframes starPop {
   0% {

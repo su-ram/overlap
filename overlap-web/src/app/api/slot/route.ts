@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/server";
+import type { Request } from "next/server";
 
 // POST /api/slot - slot 생성
 export async function POST(req: Request) {
@@ -125,3 +126,47 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+
+// PATCH /api/slot - slot 업데이트 (fix 속성 등)
+export async function PATCH(req: Request) {
+  try {
+    const supabase = createAdminClient();
+    const body = await req.json();
+    const { moimId, date, fix } = body;
+
+    if (!moimId || !date) {
+      return NextResponse.json(
+        { error: "moimId and date are required" },
+        { status: 400 }
+      );
+    }
+
+    // 해당 날짜의 모든 slot을 업데이트
+    const updateData: any = {};
+    if (fix !== undefined) {
+      updateData.fix = fix;
+    }
+
+    const { data, error } = await supabase
+      .from("slot")
+      .update(updateData)
+      .eq("moim", moimId)
+      .eq("date", date)
+      .select();
+
+    if (error) {
+      return NextResponse.json(
+        { error: `Failed to update slot: ${error.message}` },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ slots: data || [] });
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Invalid request body" },
+      { status: 400 }
+    );
+  }
+}
+

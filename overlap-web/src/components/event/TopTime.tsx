@@ -8,9 +8,10 @@ type TopTimeProps = {
   slots: TimeSlot[];
   onDateClick?: (date: Date) => void;
   selectedDateKey?: string;
+  fixedSlots?: Set<string>;
 };
 
-export function TopTime({ slots, onDateClick, selectedDateKey }: TopTimeProps) {
+export function TopTime({ slots, onDateClick, selectedDateKey, fixedSlots }: TopTimeProps) {
   const getDateKey = (date: Date) => {
     return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
   };
@@ -25,7 +26,8 @@ export function TopTime({ slots, onDateClick, selectedDateKey }: TopTimeProps) {
           return (
             <li 
               key={`${slot.date}-${index}`} 
-              className={`flex items-center gap-3 py-4 px-2 cursor-default transition-colors border-b border-dashed border-gray-200 ${
+              onClick={() => slot.dateObj && onDateClick?.(slot.dateObj)}
+              className={`flex items-center gap-3 py-4 px-2 cursor-pointer transition-colors border-b border-dashed border-gray-200 ${
                 isLast ? "border-b-0" : ""
               } ${
                 isSelected 
@@ -49,8 +51,14 @@ export function TopTime({ slots, onDateClick, selectedDateKey }: TopTimeProps) {
               <span className={`text-sm flex-1 [font-family:var(--font-body)] ${
                 isSelected ? "text-[#333333]" : "text-[#333333]"
               } ${index < 3 ? "font-bold" : ""}`}>{slot.date}</span>
-              {slot.votes !== undefined && (
-                <span className="text-xs text-gray-500 shrink-0 [font-family:var(--font-body)]">{slot.votes}명</span>
+              {slot.dateObj && fixedSlots?.has(getDateKey(slot.dateObj)) ? (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-300 shrink-0 [font-family:var(--font-body)]">
+                  이때 보자고
+                </span>
+              ) : (
+                slot.votes !== undefined && (
+                  <span className="text-xs text-gray-500 shrink-0 [font-family:var(--font-body)]">{slot.votes}명</span>
+                )
               )}
             </li>
           );

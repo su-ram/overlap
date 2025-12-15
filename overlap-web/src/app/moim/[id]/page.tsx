@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { CalendarHeatmap } from "@/components/calendar/CalendarHeatmap";
 import { ParticipantCard } from "@/components/event/ParticipantCard";
@@ -60,6 +60,12 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
   const [isUrlCopied, setIsUrlCopied] = useState<boolean>(false);
   const [showToast, setShowToast] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string>("");
+  const [isInputFocused, setIsInputFocused] = useState<boolean>(false);
+  const isInputFocusedRef = useRef<boolean>(false);
+  const [showConfirmAlert, setShowConfirmAlert] = useState<boolean>(false);
+  const [selectedSlotForConfirm, setSelectedSlotForConfirm] = useState<{ date: string; dateObj?: Date } | null>(null);
+  const [fixedSlots, setFixedSlots] = useState<Set<string>>(new Set());
+  const [showCelebration, setShowCelebration] = useState<boolean>(false);
 
   // 데스크톱에서는 사이드바를 기본적으로 열어두기
   useEffect(() => {
@@ -68,9 +74,11 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
         setIsLeftSidebarOpen(true);
         setIsRightSidebarOpen(true);
       } else {
-        // 모바일에서는 좌측 사이드바만 닫고, 우측 사이드바는 항상 닫음
-        setIsLeftSidebarOpen(false);
-        setIsRightSidebarOpen(false);
+        // 모바일에서는 인풋에 포커스가 없을 때만 사이드바를 닫음
+        if (!isInputFocusedRef.current) {
+          setIsRightSidebarOpen(false);
+          // 좌측 사이드바는 사용자가 열어둔 상태라면 유지
+        }
       }
     };
 
@@ -283,9 +291,186 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
     fetchTopTimeslots();
   }, [fetchTopTimeslots]);
 
-  const handleDateClickFromSidebar = (date: Date) => {
-    const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+  const handleDateClickFromSidebar = async (date: Date) => {
+    const dateKey = getDateKey(date);
     setSelectedDateKey(dateKey);
+    
+    // 이미 fix된 슬롯인지 확인
+    if (fixedSlots.has(dateKey)) {
+      // fix 취소 (fix: false로 업데이트)
+      if (moimId) {
+        try {
+          // 날짜를 YYYY-MM-DD 형식으로 변환
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, "0");
+          const day = String(date.getDate()).padStart(2, "0");
+          const dateStr = `${year}-${month}-${day}`;
+
+          // API 호출하여 fix: false로 업데이트
+          const response = await fetch("/api/slot", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              moimId: moimId,
+              date: dateStr,
+              fix: false,
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || "Failed to update slot");
+          }
+
+          // fixedSlots에서 제거
+          setFixedSlots(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(dateKey);
+            return newSet;
+          });
+          
+          showToastMessage("취소했습니다.");
+        } catch (error) {
+          console.error("Error canceling fix:", error);
+          alert(error instanceof Error ? error.message : "취소에 실패했습니다. 다시 시도해주세요.");
+        }
+      }
+      return;
+    }
+    
+    // 알럿 창 띄우기
+    const slot = slotList.find(s => s.dateObj && getDateKey(s.dateObj) === dateKey);
+    if (slot) {
+      setSelectedSlotForConfirm({ date: slot.date, dateObj: slot.dateObj });
+      setShowConfirmAlert(true);
+    }
+  };
+
+  const getDateKey = (date: Date) => {
+    return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+  };
+
+  // Confetti 효과 함수 (폭죽 효과)
+  const triggerConfetti = () => {
+    const colors = [
+      '#FFD700', // 노란색
+      '#FF69B4', // 핑크색
+      '#FF8C00', // 주황색
+      '#4169E1', // 파란색
+      '#90EE90', // 연두색
+      '#9370DB'  // 보라색
+    ];
+    const confettiCount = 80;
+    const duration = 2000;
+    const confettiElements: HTMLElement[] = [];
+
+    // 화면 중앙 좌표
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+
+    for (let i = 0; i < confettiCount; i++) {
+      const confetti = document.createElement('div');
+      const isWaterDrop = Math.random() < 0.3; // 30% 확률로 물방울
+      const color = isWaterDrop ? '#FFFFFF' : colors[Math.floor(Math.random() * colors.length)];
+      const size = isWaterDrop ? Math.random() * 8 + 4 : Math.random() * 10 + 5;
+      
+      // 랜덤 각도와 거리 (0~360도, 거리는 랜덤)
+      const angle = (Math.PI * 2 * i) / confettiCount + Math.random() * 0.5;
+      const distance = 200 + Math.random() * 300;
+      const endX = centerX + Math.cos(angle) * distance;
+      const endY = centerY + Math.sin(angle) * distance;
+      
+      const rotation = Math.random() * 720; // 더 많이 회전
+      const durationMs = duration + Math.random() * 500;
+
+      confetti.style.position = 'fixed';
+      confetti.style.left = `${centerX}px`;
+      confetti.style.top = `${centerY}px`;
+      confetti.style.width = `${size}px`;
+      confetti.style.height = `${size}px`;
+      confetti.style.backgroundColor = color;
+      confetti.style.borderRadius = isWaterDrop ? '50% 0 50% 50%' : '50%';
+      confetti.style.pointerEvents = 'none';
+      confetti.style.zIndex = '9999';
+      confetti.style.opacity = '0.9';
+      confetti.style.transformOrigin = 'center center';
+
+      document.body.appendChild(confetti);
+      confettiElements.push(confetti);
+
+      // 폭죽 효과 애니메이션 (중앙에서 사방으로 퍼짐)
+      confetti.animate([
+        { 
+          transform: `translate(0, 0) rotate(0deg) scale(1)`, 
+          opacity: 1 
+        },
+        { 
+          transform: `translate(${endX - centerX}px, ${endY - centerY}px) rotate(${rotation}deg) scale(0.3)`, 
+          opacity: 0 
+        }
+      ], {
+        duration: durationMs,
+        easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+      }).onfinish = () => {
+        confetti.remove();
+      };
+    }
+
+    // 일정 시간 후 남은 confetti 제거
+    setTimeout(() => {
+      confettiElements.forEach(el => {
+        if (el.parentNode) {
+          el.remove();
+        }
+      });
+    }, duration + 1000);
+  };
+
+  const handleConfirmNo = () => {
+    setShowConfirmAlert(false);
+    setSelectedSlotForConfirm(null);
+  };
+
+  const handleConfirmYes = async () => {
+    if (selectedSlotForConfirm?.dateObj && moimId) {
+      try {
+        // 날짜를 YYYY-MM-DD 형식으로 변환
+        const year = selectedSlotForConfirm.dateObj.getFullYear();
+        const month = String(selectedSlotForConfirm.dateObj.getMonth() + 1).padStart(2, "0");
+        const day = String(selectedSlotForConfirm.dateObj.getDate()).padStart(2, "0");
+        const dateStr = `${year}-${month}-${day}`;
+
+        // API 호출하여 fix: true로 업데이트
+        const response = await fetch("/api/slot", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            moimId: moimId,
+            date: dateStr,
+            fix: true,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || "Failed to update slot");
+        }
+
+        const dateKey = getDateKey(selectedSlotForConfirm.dateObj);
+        setFixedSlots(prev => new Set(prev).add(dateKey));
+        setShowConfirmAlert(false);
+        setSelectedSlotForConfirm(null);
+        
+        // Confetti 효과
+        triggerConfetti();
+        
+        // Toast 메시지 표시
+        showToastMessage("만날 날짜가 확정되었습니다! 🎉");
+      } catch (error) {
+        console.error("Error fixing slot:", error);
+        alert(error instanceof Error ? error.message : "슬롯 업데이트에 실패했습니다. 다시 시도해주세요.");
+      }
+    }
   };
 
   // 모임 데이터 새로고침
@@ -498,8 +683,9 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#FAF9F6]">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-[#333333]">모임을 찾을 수 없습니다</h1>
-          <p className="mt-2 text-[#333333]">존재하지 않는 모임 ID입니다.</p>
+          <div className="text-6xl mb-4">🔍</div>
+          <h1 className="text-2xl font-bold text-[#333333] [font-family:var(--font-headline)]">모임을 찾는 중입니다</h1>
+          <p className="mt-2 text-[#333333] [font-family:var(--font-body)]">잠시만 기다려주세요...</p>
         </div>
       </div>
     );
@@ -507,6 +693,36 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
 
   return (
     <div className="relative min-h-screen">
+      {/* 확인 알럿 창 */}
+      {showConfirmAlert && selectedSlotForConfirm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 [font-family:var(--font-body)] animate-in zoom-in-95 duration-200">
+            <div className="text-center mb-6">
+              <p className="text-lg font-semibold text-gray-900 mb-2 [font-family:var(--font-headline)]">
+                {selectedSlotForConfirm.date}
+              </p>
+              <p className="text-base text-gray-600">
+                이 날 만날까?
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={handleConfirmNo}
+                className="flex-1 px-4 py-3 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-all hover:scale-105 active:scale-95"
+              >
+                아니
+              </button>
+              <button
+                onClick={handleConfirmYes}
+                className="flex-1 px-4 py-3 text-sm font-medium text-white bg-[#4CAF50] rounded-lg hover:bg-[#45a049] transition-all hover:scale-105 active:scale-95 shadow-md"
+              >
+                좋아
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast 메시지 */}
       {showToast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-2 duration-300">
@@ -520,7 +736,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       )}
 
       {/* 모바일 오버레이 */}
-      {isLeftSidebarOpen && (
+      {isLeftSidebarOpen && !isInputFocused && (
         <div 
           className="fixed inset-0 bg-black/50 z-30 md:hidden"
           onClick={() => {
@@ -586,6 +802,17 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                 value={newMemberName}
                 onChange={(e) => setNewMemberName(e.target.value)}
                 onKeyDown={handleInputKeyDown}
+                onFocus={() => {
+                  isInputFocusedRef.current = true;
+                  setIsInputFocused(true);
+                }}
+                onBlur={() => {
+                  // 약간의 지연을 두어 버튼 클릭이 가능하도록
+                  setTimeout(() => {
+                    isInputFocusedRef.current = false;
+                    setIsInputFocused(false);
+                  }, 200);
+                }}
                 placeholder="참여자 이름"
                 className="w-full px-3 pr-20 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-0 focus:border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 [font-family:var(--font-body)]"
                 disabled={isAddingMember}
@@ -646,6 +873,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                   slots={slotList} 
                   onDateClick={handleDateClickFromSidebar}
                   selectedDateKey={selectedDateKey}
+                  fixedSlots={fixedSlots}
                 />
               ) : (
                 <div className="text-sm text-[#333333] text-center py-4">
@@ -658,7 +886,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       </aside>
 
       {/* 메인 컨텐츠 */}
-      <div className={`bg-[#FAF9F6] transition-all duration-300 w-full ${
+      <div className={`bg-[#FAF9F6] transition-all duration-300 md:min-w-0 ${
         isLeftSidebarOpen ? "md:ml-64" : "md:ml-0"
       } ${isRightSidebarOpen ? "md:mr-64" : "md:mr-0"}`}>
         <div className="relative min-h-screen md:h-screen px-3 py-6 md:px-4 md:py-8 lg:px-6 lg:py-10 flex flex-col md:overflow-hidden">
@@ -751,6 +979,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                 selectedDateKey={selectedDateKey}
                 focusedDateKeys={focusedDateKeys}
                 highlightedDateKeys={showOnlyMyVotes ? myVotedDateKeys : undefined}
+                fixedDateKeys={fixedSlots}
                 onDateSelect={handleCalendarDateClick}
                 onMonthChange={(year, month) => {
                   setCurrentCalendarYear(year);
@@ -774,6 +1003,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                       slots={slotList} 
                       onDateClick={handleDateClickFromSidebar}
                       selectedDateKey={selectedDateKey}
+                      fixedSlots={fixedSlots}
                     />
                   ) : (
                     <div className="text-sm text-[#333333] text-center py-4">
