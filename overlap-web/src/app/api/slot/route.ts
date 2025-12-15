@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/server";
-import type { Request } from "next/server";
 
 // POST /api/slot - slot 생성
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const body = await req.json();
@@ -128,7 +127,7 @@ export async function GET(req: NextRequest) {
 }
 
 // PATCH /api/slot - slot 업데이트 (fix 속성 등)
-export async function PATCH(req: Request) {
+export async function PATCH(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const body = await req.json();
@@ -169,4 +168,5 @@ export async function PATCH(req: Request) {
     );
   }
 }
+
 

@@ -43,3 +43,4 @@ export default function JoinPage({ params }: { params: { id: string } }) {
   );
 }
 
+
