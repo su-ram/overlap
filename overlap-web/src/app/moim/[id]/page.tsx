@@ -661,7 +661,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       <div className={`bg-[#FAF9F6] transition-all duration-300 w-full ${
         isLeftSidebarOpen ? "md:ml-64" : "md:ml-0"
       } ${isRightSidebarOpen ? "md:mr-64" : "md:mr-0"}`}>
-        <div className="relative h-screen px-3 py-6 md:px-4 md:py-8 lg:px-6 lg:py-10 flex flex-col">
+        <div className="relative min-h-screen md:h-screen px-3 py-6 md:px-4 md:py-8 lg:px-6 lg:py-10 flex flex-col md:overflow-hidden">
           {/* 모바일 사이드바 토글 버튼 */}
           <div className="flex items-center gap-2 mb-4 md:hidden">
             <button
@@ -742,9 +742,9 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
             </div>
           </div>
 
-          <div className="w-full flex-1 flex flex-col gap-4 md:gap-6 min-h-0">
+          <div className="w-full flex flex-col gap-4 md:gap-6 md:flex-1 md:min-h-0 md:overflow-hidden">
             {/* 메인 캘린더 - 히트맵 형태 */}
-            <section className="w-full flex-1 min-h-0">
+            <section className="w-full md:flex-1 md:min-h-0 relative z-0">
               <CalendarHeatmap 
                 availabilityData={calendarAvailabilityData}
                 maxVotes={Math.max(...calendarAvailabilityData, 1)}
@@ -760,7 +760,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
             </section>
 
             {/* 모바일 Top 시간 목록 - 캘린더 아래 */}
-            <section className="md:hidden w-full mt-4">
+            <section className="md:hidden w-full mt-4 mb-4 relative z-0">
               <div className="bg-white border border-gray-200 rounded-lg p-4">
                 <div className="mb-4">
                   <h2 className="text-lg font-semibold text-[#333333] [font-family:var(--font-headline)]">Top 시간</h2>
