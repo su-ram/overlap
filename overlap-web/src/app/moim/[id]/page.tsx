@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
 import { CalendarHeatmap } from "@/components/calendar/CalendarHeatmap";
 import { ParticipantCard } from "@/components/event/ParticipantCard";
 import { TopTime } from "@/components/event/TopTime";
@@ -38,6 +39,7 @@ type MoimData = {
 };
 
 export default function EventPage({ params }: { params: Promise<{ id: string }> | { id: string } }) {
+  const router = useRouter();
   const [moimId, setMoimId] = useState<string | null>(null);
   const [moimData, setMoimData] = useState<MoimData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -291,6 +293,32 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
     fetchTopTimeslots();
   }, [fetchTopTimeslots]);
 
+  const getDateKey = (date: Date) => {
+    return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+  };
+
+  // moimData에서 fix된 슬롯들을 fixedSlots에 반영
+  useEffect(() => {
+    if (moimData?.slots) {
+      const fixedDateKeys = new Set<string>();
+      moimData.slots.forEach((slot) => {
+        if (slot.fix && slot.date) {
+          // date를 Date 객체로 변환하여 dateKey 생성
+          try {
+            const date = new Date(slot.date);
+            if (!isNaN(date.getTime())) {
+              const dateKey = getDateKey(date);
+              fixedDateKeys.add(dateKey);
+            }
+          } catch (e) {
+            console.warn("Failed to parse date for fixed slot:", slot.date);
+          }
+        }
+      });
+      setFixedSlots(fixedDateKeys);
+    }
+  }, [moimData?.slots]);
+
   const handleDateClickFromSidebar = async (date: Date) => {
     const dateKey = getDateKey(date);
     setSelectedDateKey(dateKey);
@@ -329,6 +357,9 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
             return newSet;
           });
           
+          // 모임 데이터 새로고침 (fix 상태 반영)
+          await refreshMoimData();
+          
           showToastMessage("취소했습니다.");
         } catch (error) {
           console.error("Error canceling fix:", error);
@@ -344,10 +375,6 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       setSelectedSlotForConfirm({ date: slot.date, dateObj: slot.dateObj });
       setShowConfirmAlert(true);
     }
-  };
-
-  const getDateKey = (date: Date) => {
-    return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
   };
 
   // Confetti 효과 함수 (폭죽 효과)
@@ -460,6 +487,9 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
         setFixedSlots(prev => new Set(prev).add(dateKey));
         setShowConfirmAlert(false);
         setSelectedSlotForConfirm(null);
+        
+        // 모임 데이터 새로고침 (fix 상태 반영)
+        await refreshMoimData();
         
         // Confetti 효과
         triggerConfetti();
@@ -906,6 +936,16 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
           {/* 모임 제목 및 토글 */}
           <div className="mb-6 flex items-center justify-between">
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => router.push("/enter")}
+                className="p-2 text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                title="홈으로"
+                aria-label="홈으로"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+              </button>
               <h1 className="text-2xl md:text-3xl font-bold text-[#333333] [font-family:var(--font-headline)]">
                 {moimData?.moim_name || "모임"}
               </h1>
