@@ -375,7 +375,12 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
             date: dateStr,
             dateObj,
             votes: slot.vote_count || slot.pick || slot.votes || 0,
+            pick: slot.pick ? Number(slot.pick) : undefined,
           };
+        })
+        // pick이 -1인 슬롯 제외
+        .filter((slot: { pick?: number }) => {
+          return slot.pick !== -1;
         })
         // 1명 이상 투표한 날짜만 필터링
         .filter((slot: { votes: number }) => {
