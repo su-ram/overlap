@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isHoliday, getHolidayName } from "@/lib/holidays";
 
 type CalendarHeatmapProps = {
   onDateSelect?: (date: Date) => void;
@@ -194,7 +195,7 @@ export function CalendarHeatmap({
             )}
           />
         ))}
-        <span>{maxVotes}명</span>
+        <span>{totalMembers || maxVotes}명</span>
       </div>
 
       {/* 요일 헤더 */}
@@ -233,6 +234,10 @@ export function CalendarHeatmap({
             dayInfo.date.getFullYear() === today.getFullYear() &&
             dayInfo.date.getMonth() === today.getMonth() &&
             dayInfo.date.getDate() === today.getDate();
+          
+          // 공휴일인지 확인
+          const isHolidayDate = isHoliday(dayInfo.date);
+          const holidayName = getHolidayName(dayInfo.date);
 
           return (
             <button
@@ -259,20 +264,23 @@ export function CalendarHeatmap({
                 !highlighted && densityClass(availabilityLevel, false)
               )}
             >
-              <div className="relative flex flex-col items-start justify-start h-full p-0.5 w-full">
+              <div className="relative flex flex-col items-start justify-start h-full p-1 w-full">
                 <div className="flex items-center gap-0.5">
                   {isToday ? (
-                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-dashed border-[#333333] text-xs font-medium">
-                      {dayInfo.day}
-                    </span>
+                    <span className={`font-bold ${isHolidayDate ? "text-red-600" : ""}`}>{dayInfo.day}</span>
+                  ) : fixed ? (
+                    <span className={`font-bold ${isHolidayDate ? "text-red-600" : ""}`}>{dayInfo.day}</span>
                   ) : (
-                    <span>{dayInfo.day}</span>
+                    <span className={isHolidayDate ? "text-red-600" : ""}>{dayInfo.day}</span>
                   )}
                   {fixed && (
                     <span className="text-[10px]">📌</span>
                   )}
                 </div>
-                {focused && (
+                {holidayName && (
+                  <span className="text-[8px] text-red-600 font-medium leading-tight mt-0.5">{holidayName}</span>
+                )}
+                {focused && !isHighlightMode && (
                   <span className="absolute bottom-0.5 right-0.5 text-[8px] text-gray-600">●</span>
                 )}
               </div>

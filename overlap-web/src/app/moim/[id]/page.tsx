@@ -241,7 +241,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
     return availabilityData;
   }, [moimData?.slots, daysInCurrentMonth, currentCalendarYear, currentCalendarMonth, showOnlyMyVotes, selectedBuddyId]);
 
-  // Top 시간 리스트 조회 함수 (재사용 가능하도록 분리)
+  // 추천 일정 리스트 조회 함수 (재사용 가능하도록 분리)
   const fetchTopTimeslots = useCallback(async () => {
     if (!moimId) return;
 
@@ -754,10 +754,9 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
         <div className="flex h-full flex-col p-3 md:p-4">
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-[#333333] [font-family:var(--font-headline)]">참여자</h2>
-              <p className="mt-1 text-xs text-[#333333] [font-family:var(--font-body)]">
-                {buddyList.length}명
-              </p>
+              <h2 className="text-lg font-semibold text-[#333333] [font-family:var(--font-headline)]">
+                참여자 ({buddyList.length}명)
+              </h2>
             </div>
             <button
               onClick={() => setIsLeftSidebarOpen(false)}
@@ -844,17 +843,14 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
         </div>
       </aside>
 
-      {/* 우측 사이드바 - Top 시간 (데스크톱만) */}
+      {/* 우측 사이드바 - 추천 일정 (데스크톱만) */}
       <aside className={`hidden md:block fixed right-0 top-0 z-40 h-screen w-64 bg-[#FAF9F6] border-l border-white/70 shadow-lg transition-transform duration-300 ease-in-out ${
         isRightSidebarOpen ? "translate-x-0" : "translate-x-full"
       }`}>
         <div className="flex h-full flex-col p-3 md:p-4">
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-[#333333] [font-family:var(--font-headline)]">Top 시간</h2>
-              <p className="mt-1 text-xs text-[#333333] [font-family:var(--font-body)]">
-                이 날 어때
-              </p>
+              <h2 className="text-lg font-semibold text-[#333333] [font-family:var(--font-headline)]">추천 일정</h2>
             </div>
             <button
               onClick={() => setIsRightSidebarOpen(false)}
@@ -955,8 +951,8 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                 <button
                   onClick={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
                   className="p-2 text-gray-700 hover:bg-gray-100 rounded-md"
-                  aria-label="Top 시간 사이드바 토글"
-                  title={isRightSidebarOpen ? "Top 시간 사이드바 닫기" : "Top 시간 사이드바 열기"}
+                  aria-label="추천 일정 사이드바 토글"
+                  title={isRightSidebarOpen ? "추천 일정 사이드바 닫기" : "추천 일정 사이드바 열기"}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1002,14 +998,11 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
               />
             </section>
 
-            {/* 모바일 Top 시간 목록 - 캘린더 아래 */}
+            {/* 모바일 추천 일정 목록 - 캘린더 아래 */}
             <section className="md:hidden w-full mt-4 mb-4 relative z-0">
               <div className="bg-white border border-gray-200 rounded-lg p-4">
                 <div className="mb-4">
-                  <h2 className="text-lg font-semibold text-[#333333] [font-family:var(--font-headline)]">Top 시간</h2>
-                  <p className="mt-1 text-xs text-[#333333] [font-family:var(--font-body)]">
-                    이 날 어때
-                  </p>
+                  <h2 className="text-lg font-semibold text-[#333333] [font-family:var(--font-headline)]">추천 일정</h2>
                 </div>
                 <div className="max-h-64 overflow-y-auto">
                   {slotList.length > 0 ? (

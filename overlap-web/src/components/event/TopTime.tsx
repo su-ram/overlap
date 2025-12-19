@@ -56,7 +56,7 @@ export function TopTime({ slots, onDateClick, selectedDateKey, fixedSlots, total
                 )}
                 {slot.dateObj && fixedSlots?.has(getDateKey(slot.dateObj)) ? (
                   <span className="inline-flex items-center px-1 py-0.5 rounded-full text-[9px] font-medium bg-red-100 text-red-800 border border-red-300 [font-family:var(--font-body)]">
-                    이때 보자고
+                    캘박
                   </span>
                 ) : (
                   slot.votes !== undefined && (
