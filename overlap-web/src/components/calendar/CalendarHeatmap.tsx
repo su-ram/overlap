@@ -18,6 +18,7 @@ type CalendarHeatmapProps = {
   totalMembers?: number; // 모임 전체 인원 수 (70% 강조 처리용)
   unavailableDateKeys?: Set<string>; // 딤 처리할 날짜 키들 (pick: -1인 날짜)
   dateVotersMap?: Map<string, string[]>; // 날짜별 투표한 참여자 이름 목록
+  dateUnavailableVotersMap?: Map<string, string[]>; // 날짜별 "안 되는 날"로 표시한 참여자 이름 목록 (pick: -1)
 };
 
 const densityClass = (level: number, isSelected: boolean = false) => {
@@ -46,6 +47,7 @@ export function CalendarHeatmap({
   totalMembers,
   unavailableDateKeys,
   dateVotersMap,
+  dateUnavailableVotersMap,
 }: CalendarHeatmapProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
@@ -172,9 +174,9 @@ export function CalendarHeatmap({
   };
 
   return (
-    <div className="w-full h-full bg-[#FAF9F6] p-0.5 md:p-2 lg:p-3 flex flex-col">
+    <div className="w-full h-full bg-[#FAF9F6] p-0 md:p-2 lg:p-3 flex flex-col">
       {/* 헤더 */}
-      <div className="mb-1.5 flex items-center justify-between">
+      <div className="mb-1 md:mb-1.5 flex items-center justify-between px-1 md:px-0">
         <button
           onClick={goToPreviousMonth}
           className="p-1.5 hover:bg-white/30 backdrop-blur-sm rounded-lg transition-all"
@@ -193,7 +195,7 @@ export function CalendarHeatmap({
       </div>
 
       {/* 범례 */}
-      <div className="mb-1.5 flex items-center justify-center gap-2 text-[10px] text-[#333333] [font-family:var(--font-body)]">
+      <div className="mb-1 md:mb-1.5 flex items-center justify-center gap-2 text-[10px] text-[#333333] [font-family:var(--font-body)]">
         <span>0명</span>
         {[0, 1, 2].map((level) => (
           <span
@@ -208,7 +210,7 @@ export function CalendarHeatmap({
       </div>
 
       {/* 요일 헤더 */}
-      <div className="grid grid-cols-7 gap-1 mb-1">
+      <div className="grid grid-cols-7 gap-0.5 md:gap-1 mb-0.5 md:mb-1">
         {dayLabels.map((day) => (
           <div
             key={day}
@@ -220,7 +222,7 @@ export function CalendarHeatmap({
       </div>
 
       {/* 날짜 그리드 - 히트맵 형태 */}
-      <div className="grid grid-cols-7 gap-1 flex-1 min-h-0 overflow-visible" style={{ gridAutoRows: '1fr' }}>
+      <div className="grid grid-cols-7 gap-0.5 md:gap-1 flex-1 min-h-0 overflow-visible" style={{ gridAutoRows: '1fr' }}>
         {/* 빈 칸 (첫 주의 시작일 이전) */}
         {Array.from({ length: firstDayOfMonth }).map((_, index) => (
           <div key={`empty-${index}`} />
@@ -232,11 +234,12 @@ export function CalendarHeatmap({
           const focused = isDateFocused(dayInfo.date);
           const highlighted = isDateHighlighted(dayInfo.date);
           const fixed = isDateFixed(dayInfo.date);
-          const availabilityLevel = getAvailabilityLevel(dayIndex);
-          const votes = availabilityData?.[dayIndex] ?? 0;
-          const isHighVote = isDateHighVote(dayIndex);
-          const isHighlightMode = highlightedDateKeys !== undefined;
           const isUnavailable = isDateUnavailable(dayInfo.date);
+          // pick: -1인 날짜는 투표 수를 0으로 처리
+          const availabilityLevel = isUnavailable ? 0 : getAvailabilityLevel(dayIndex);
+          const votes = isUnavailable ? 0 : (availabilityData?.[dayIndex] ?? 0);
+          const isHighVote = isUnavailable ? false : isDateHighVote(dayIndex);
+          const isHighlightMode = highlightedDateKeys !== undefined;
           
           // 오늘 날짜인지 확인
           const today = new Date();
@@ -249,9 +252,15 @@ export function CalendarHeatmap({
           const isHolidayDate = isHoliday(dayInfo.date);
           const holidayName = getHolidayName(dayInfo.date);
           
-          // 해당 날짜에 투표한 참여자 목록
+          // 해당 날짜에 투표한 참여자 목록 (pick: -1인 날짜는 빈 배열)
           const dateKey = getDateKey(dayInfo.date);
-          const voters = dateVotersMap?.get(dateKey) || [];
+          const voters = isUnavailable ? [] : (dateVotersMap?.get(dateKey) || []);
+          // 해당 날짜에 "안 되는 날"로 표시한 참여자 목록
+          const unavailableVoters = isUnavailable ? (dateUnavailableVotersMap?.get(dateKey) || []) : [];
+          // tooltip 표시 여부: 투표가 있거나 "안 되는 날"로 표시한 참여자가 있는 경우만
+          const shouldShowTooltip = isUnavailable 
+            ? unavailableVoters.length > 0 
+            : (votes > 0 || voters.length > 0);
 
           return (
             <button
@@ -261,7 +270,7 @@ export function CalendarHeatmap({
               className={cn(
                 "h-full rounded-sm border text-xs font-medium transition-all [font-family:var(--font-body)] overflow-visible backdrop-blur-[6px] group",
                 isUnavailable 
-                  ? "opacity-30 cursor-not-allowed grayscale pointer-events-none" 
+                  ? "opacity-50 cursor-not-allowed" 
                   : "hover:opacity-80 active:scale-[0.95] active:translate-y-0.5",
                 "transform transition-transform duration-150 ease-out",
                 // "내 투표만 보기" 모드일 때 내가 투표한 날짜만 강조
@@ -282,38 +291,57 @@ export function CalendarHeatmap({
               )}
             >
               <div className="relative flex flex-col items-start justify-start h-full p-1 w-full">
-                <div className="flex items-center gap-0.5">
+                <div className="flex items-center gap-0.5" style={isUnavailable ? { opacity: 1 } : undefined}>
                   {isToday ? (
-                    <span className={`font-bold ${isHolidayDate ? "text-red-600" : ""}`}>{dayInfo.day}</span>
+                    <span className={`font-bold ${isUnavailable ? "text-[#333333]" : (isHolidayDate ? "text-red-600" : "")}`}>{dayInfo.day}</span>
                   ) : fixed ? (
-                    <span className={`font-bold ${isHolidayDate ? "text-red-600" : ""}`}>{dayInfo.day}</span>
+                    <span className={`font-bold ${isUnavailable ? "text-[#333333]" : (isHolidayDate ? "text-red-600" : "")}`}>{dayInfo.day}</span>
                   ) : (
-                    <span className={isHolidayDate ? "text-red-600" : ""}>{dayInfo.day}</span>
+                    <span className={isUnavailable ? "text-[#333333]" : (isHolidayDate ? "text-red-600" : "")}>{dayInfo.day}</span>
                   )}
                   {fixed && (
                     <span className="text-[10px]">📌</span>
                   )}
                 </div>
                 {holidayName && (
-                  <span className="text-[8px] text-red-600 font-medium leading-tight mt-0.5">{holidayName}</span>
+                  <span className={`text-[8px] font-medium leading-tight mt-0.5 ${isUnavailable ? "text-[#333333]" : "text-red-600"}`}>{holidayName}</span>
                 )}
                 {focused && !isHighlightMode && (
                   <span className="absolute bottom-0.5 right-0.5 text-[8px] text-gray-600">●</span>
                 )}
               </div>
               {/* Tooltip */}
+              {shouldShowTooltip && (
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1.5 bg-gray-900 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 z-50 [font-family:var(--font-body)] max-w-xs">
                 <div className="flex flex-col gap-1">
-                  <span>{votes}명 투표</span>
-                  {voters.length > 0 && (
-                    <div className="text-[9px] text-gray-300 whitespace-normal break-words">
-                      {voters.map((voter, idx) => (
-                        <span key={idx}>
-                          {voter}
-                          {idx < voters.length - 1 && ", "}
-                        </span>
-                      ))}
-                    </div>
+                  {isUnavailable ? (
+                    <>
+                      <span>❌</span>
+                      {unavailableVoters.length > 0 && (
+                        <div className="text-[9px] text-gray-300 whitespace-normal break-words">
+                          {unavailableVoters.map((voter, idx) => (
+                            <span key={idx}>
+                              {voter}
+                              {idx < unavailableVoters.length - 1 && ", "}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <span className="whitespace-nowrap">🟢 {votes}명 투표</span>
+                      {voters.length > 0 && (
+                        <div className="text-[9px] text-gray-300 whitespace-normal break-words">
+                          {voters.map((voter, idx) => (
+                            <span key={idx}>
+                              {voter}
+                              {idx < voters.length - 1 && ", "}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
                 {/* Tooltip 화살표 */}
@@ -321,6 +349,7 @@ export function CalendarHeatmap({
                   <div className="w-2 h-2 bg-gray-900 transform rotate-45"></div>
                 </div>
               </div>
+              )}
             </button>
           );
         })}

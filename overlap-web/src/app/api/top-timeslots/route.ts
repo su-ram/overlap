@@ -27,7 +27,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    return NextResponse.json({ slots: data || [] });
+    // pick이 -1인 슬롯 제외
+    const filteredSlots = (data || []).filter((slot: any) => {
+      const pickValue = slot.pick ? Number(slot.pick) : undefined;
+      return pickValue !== -1;
+    });
+
+    return NextResponse.json({ slots: filteredSlots });
   } catch (error) {
     console.error("Error fetching top timeslots:", error);
     return NextResponse.json(

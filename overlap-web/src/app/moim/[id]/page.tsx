@@ -329,23 +329,91 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
     return map;
   }, [moimData?.slots, moimData?.buddies, currentCalendarYear, currentCalendarMonth]);
 
+  // 날짜별 "안 되는 날"로 표시한 참여자 목록 계산 (pick: -1)
+  const dateUnavailableVotersMap = useMemo(() => {
+    const map = new Map<string, string[]>(); // dateKey -> 참여자 이름 배열
+    
+    if (!moimData?.slots || !moimData?.buddies) {
+      return map;
+    }
+
+    const year = currentCalendarYear;
+    const month = currentCalendarMonth;
+
+    // buddy id -> 이름 매핑 생성
+    const buddyNameMap = new Map<number, string>();
+    moimData.buddies.forEach((buddy) => {
+      const buddyId = buddy.id ? Number(buddy.id) : null;
+      if (buddyId !== null) {
+        const buddyName = buddy.name || buddy.member_name || `참여자 ${buddyId}`;
+        buddyNameMap.set(buddyId, buddyName);
+      }
+    });
+
+    // 각 slot을 순회하며 pick: -1인 참여자 목록 생성
+    moimData.slots.forEach((slot) => {
+      if (!slot.date || !slot.buddy) return;
+
+      const pickValue = slot.pick ? Number(slot.pick) : 0;
+      // pick이 -1인 경우만 포함
+      if (pickValue !== -1) return;
+
+      try {
+        const slotDate = new Date(slot.date);
+        if (
+          slotDate.getFullYear() === year &&
+          slotDate.getMonth() === month
+        ) {
+          const dateKey = `${slotDate.getFullYear()}-${slotDate.getMonth()}-${slotDate.getDate()}`;
+          const buddyId = Number(slot.buddy);
+          const buddyName = buddyNameMap.get(buddyId);
+          
+          if (buddyName) {
+            const existing = map.get(dateKey) || [];
+            // 중복 제거
+            if (!existing.includes(buddyName)) {
+              map.set(dateKey, [...existing, buddyName]);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to parse slot date:", slot.date);
+      }
+    });
+
+    return map;
+  }, [moimData?.slots, moimData?.buddies, currentCalendarYear, currentCalendarMonth]);
+
   // 추천 일정 리스트 조회 함수 (재사용 가능하도록 분리)
   const fetchTopTimeslots = useCallback(async () => {
     if (!moimId) return;
 
     try {
-      const response = await fetch(
-        `/api/top-timeslots?moimId=${moimId}&year=${currentCalendarYear}&month=${currentCalendarMonth + 1}`
-      );
+      // 추천 일정과 pick: -1인 슬롯 목록을 동시에 가져오기
+      const [topTimeslotsResponse, unavailableSlotsResponse] = await Promise.all([
+        fetch(
+          `/api/top-timeslots?moimId=${moimId}&year=${currentCalendarYear}&month=${currentCalendarMonth + 1}`
+        ),
+        fetch(
+          `/api/unavailable-slots?moimId=${moimId}&year=${currentCalendarYear}&month=${currentCalendarMonth + 1}`
+        ),
+      ]);
       
-      if (!response.ok) {
+      if (!topTimeslotsResponse.ok) {
         console.error("Failed to fetch top timeslots");
         setSlotList([]);
         return;
       }
 
-      const data = await response.json();
+      const data = await topTimeslotsResponse.json();
       const slots = data.slots || [];
+      
+      // pick: -1인 날짜 목록 가져오기
+      let unavailableDateKeys = new Set<string>();
+      if (unavailableSlotsResponse.ok) {
+        const unavailableData = await unavailableSlotsResponse.json();
+        unavailableDateKeys = new Set(unavailableData.dates || []);
+      }
       
       const dayLabels = ["일", "월", "화", "수", "목", "금", "토"];
       
@@ -371,17 +439,33 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
             }
           }
           
+          const pickValue = slot.pick !== undefined && slot.pick !== null ? Number(slot.pick) : undefined;
+          
+          // pick이 -1인 경우는 제외 (엄격한 체크)
+          if (pickValue === -1) {
+            return null;
+          }
+          
+          // unavailableDateKeys에 포함된 날짜도 제외
+          if (dateObj) {
+            const dateKey = `${dateObj.getFullYear()}-${dateObj.getMonth()}-${dateObj.getDate()}`;
+            if (unavailableDateKeys.has(dateKey)) {
+              return null;
+            }
+          }
+          
+          // vote_count가 계산될 때 pick: -1이 포함되었을 수 있으므로, pick 값도 확인
+          const votes = slot.vote_count || (pickValue && pickValue > 0 ? pickValue : 0) || slot.votes || 0;
+          
           return {
             date: dateStr,
             dateObj,
-            votes: slot.vote_count || slot.pick || slot.votes || 0,
-            pick: slot.pick ? Number(slot.pick) : undefined,
+            votes: votes,
+            pick: pickValue,
           };
         })
-        // pick이 -1인 슬롯 제외
-        .filter((slot: { pick?: number }) => {
-          return slot.pick !== -1;
-        })
+        // null 값 제거 (pick: -1인 슬롯 및 unavailableDateKeys에 포함된 날짜)
+        .filter((slot: any) => slot !== null && slot.pick !== -1)
         // 1명 이상 투표한 날짜만 필터링
         .filter((slot: { votes: number }) => {
           return slot.votes >= 1;
@@ -941,7 +1025,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
         <div className="flex h-full flex-col p-3 md:p-4">
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-[#333333] [font-family:var(--font-headline)]">
+              <h2 className="text-base font-semibold text-[#333333] [font-family:var(--font-headline)]">
                 참여자 ({buddyList.length}명)
               </h2>
             </div>
@@ -1037,7 +1121,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
         <div className="flex h-full flex-col p-3 md:p-4">
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-[#333333] [font-family:var(--font-headline)]">추천 일정</h2>
+              <h2 className="text-base font-semibold text-[#333333] [font-family:var(--font-headline)]">추천 일정</h2>
             </div>
             <button
               onClick={() => setIsRightSidebarOpen(false)}
@@ -1075,9 +1159,9 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       <div className={`bg-[#FAF9F6] transition-all duration-300 md:min-w-0 ${
         isLeftSidebarOpen ? "md:ml-64" : "md:ml-0"
       } ${isRightSidebarOpen ? "md:mr-64" : "md:mr-0"}`}>
-        <div className="relative min-h-screen md:h-screen px-0.5 py-6 md:px-4 md:py-8 lg:px-6 lg:py-10 flex flex-col md:overflow-hidden">
+        <div className="relative min-h-screen md:h-screen px-0 py-4 md:px-4 md:py-8 lg:px-6 lg:py-10 flex flex-col md:overflow-hidden">
           {/* 모바일 사이드바 토글 버튼 */}
-          <div className="flex items-center gap-2 mb-4 md:hidden">
+          <div className="flex items-center gap-2 mb-2 md:hidden px-2">
             <button
               onClick={() => setIsLeftSidebarOpen(true)}
               className="p-2 text-gray-700 hover:bg-gray-100 rounded-md"
@@ -1090,7 +1174,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
           </div>
 
           {/* 모임 제목 및 토글 */}
-          <div className="mb-6 flex items-center justify-between">
+          <div className="mb-3 md:mb-6 flex items-center justify-between px-2 md:px-0">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => router.push("/enter")}
@@ -1124,10 +1208,10 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
               <select
                 value={voteFilterMode}
                 onChange={(e) => setVoteFilterMode(e.target.value as 'available' | 'unavailable')}
-                className="px-2 py-1 pr-6 text-xs bg-white text-[#333333] [font-family:var(--font-body)] focus:outline-none border border-gray-300 rounded-md"
+                className="px-2 py-1 pr-6 text-xs bg-white text-[#333333] [font-family:var(--font-body)] focus:outline-none border border-gray-200/50 rounded-sm"
               >
-                <option value="available">되는 날</option>
-                <option value="unavailable">안 되는 날</option>
+                <option value="available">되는 날 🟢</option>
+                <option value="unavailable">안 되는 날 ❌</option>
               </select>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -1197,6 +1281,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                 totalMembers={buddyList.length}
                 unavailableDateKeys={unavailableDateKeys}
                 dateVotersMap={dateVotersMap}
+                dateUnavailableVotersMap={dateUnavailableVotersMap}
                 onDateSelect={handleCalendarDateClick}
                 onMonthChange={(year, month) => {
                   setCurrentCalendarYear(year);
@@ -1209,7 +1294,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
             <section className="md:hidden w-full mt-4 mb-4 relative z-0">
               <div className="bg-white border border-gray-200 rounded-lg p-4">
                 <div className="mb-4">
-                  <h2 className="text-lg font-semibold text-[#333333] [font-family:var(--font-headline)]">추천 일정</h2>
+                  <h2 className="text-base font-semibold text-[#333333] [font-family:var(--font-headline)]">추천 일정</h2>
                 </div>
                 <div className="max-h-64 overflow-y-auto">
                   {slotList.length > 0 ? (
