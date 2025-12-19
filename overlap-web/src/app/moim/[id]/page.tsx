@@ -51,6 +51,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
   const [currentCalendarYear, setCurrentCalendarYear] = useState<number>(new Date().getFullYear());
   const [currentCalendarMonth, setCurrentCalendarMonth] = useState<number>(new Date().getMonth());
   const [showOnlyMyVotes, setShowOnlyMyVotes] = useState<boolean>(false);
+  const [voteFilterMode, setVoteFilterMode] = useState<'available' | 'unavailable'>('available');
   const [slotList, setSlotList] = useState<Array<{
     date: string;
     dateObj?: Date;
@@ -66,6 +67,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
   const isInputFocusedRef = useRef<boolean>(false);
   const [fixedSlots, setFixedSlots] = useState<Set<string>>(new Set());
   const [showCelebration, setShowCelebration] = useState<boolean>(false);
+  const [unavailableDateKeys, setUnavailableDateKeys] = useState<Set<string>>(new Set());
 
   // 데스크톱에서는 사이드바를 기본적으로 열어두기
   useEffect(() => {
@@ -188,6 +190,34 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
     return selectedBuddyVotedDateKeys;
   }, [showOnlyMyVotes, selectedBuddyVotedDateKeys]);
 
+  // 필터 모드에 따른 날짜 키 계산
+  const filteredDateKeys = useMemo(() => {
+    if (!showOnlyMyVotes || !selectedBuddyId) {
+      return undefined;
+    }
+    
+    if (voteFilterMode === 'available') {
+      // 되는 날: 내가 투표한 날짜
+      return selectedBuddyVotedDateKeys;
+    } else {
+      // 안 되는 날: 내가 투표하지 않은 날짜
+      const allDateKeys = new Set<string>();
+      const year = currentCalendarYear;
+      const month = currentCalendarMonth;
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, month, day);
+        const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+        allDateKeys.add(dateKey);
+      }
+      
+      // 내가 투표한 날짜를 제외
+      selectedBuddyVotedDateKeys.forEach(key => allDateKeys.delete(key));
+      return allDateKeys;
+    }
+  }, [showOnlyMyVotes, selectedBuddyId, voteFilterMode, selectedBuddyVotedDateKeys, currentCalendarYear, currentCalendarMonth]);
+
   // slot 데이터를 캘린더에 매핑 (날짜별 투표 수 집계) - 캘린더에서 보고 있는 달 기준
   const calendarAvailabilityData = useMemo(() => {
     if (!moimData?.slots) {
@@ -207,7 +237,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       });
     }
 
-    // 날짜별로 pick 값 합산
+    // 날짜별로 pick 값 합산 (pick이 -1인 경우는 제외)
     const dateVotesMap = new Map<number, number>();
 
     filteredSlots.forEach((slot) => {
@@ -221,10 +251,13 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
           slotDate.getMonth() === month
         ) {
           const day = slotDate.getDate();
-          const currentVotes = dateVotesMap.get(day) || 0;
-          // pick 값이 있으면 합산 (pick은 bigint이므로 number로 변환)
+          
+          // pick이 -1이 아닌 경우만 투표 수에 합산
           const pickValue = slot.pick ? Number(slot.pick) : 0;
-          dateVotesMap.set(day, currentVotes + pickValue);
+          if (pickValue !== -1) {
+            const currentVotes = dateVotesMap.get(day) || 0;
+            dateVotesMap.set(day, currentVotes + pickValue);
+          }
         }
       } catch (e) {
         // 날짜 파싱 실패 시 무시
@@ -239,7 +272,62 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
     }
 
     return availabilityData;
-  }, [moimData?.slots, daysInCurrentMonth, currentCalendarYear, currentCalendarMonth, showOnlyMyVotes, selectedBuddyId]);
+  }, [moimData?.slots, daysInCurrentMonth, currentCalendarYear, currentCalendarMonth, showOnlyMyVotes, selectedBuddyId, voteFilterMode]);
+
+  // 날짜별 투표한 참여자 목록 계산
+  const dateVotersMap = useMemo(() => {
+    const map = new Map<string, string[]>(); // dateKey -> 참여자 이름 배열
+    
+    if (!moimData?.slots || !moimData?.buddies) {
+      return map;
+    }
+
+    const year = currentCalendarYear;
+    const month = currentCalendarMonth;
+
+    // buddy id -> 이름 매핑 생성
+    const buddyNameMap = new Map<number, string>();
+    moimData.buddies.forEach((buddy) => {
+      const buddyId = buddy.id ? Number(buddy.id) : null;
+      if (buddyId !== null) {
+        const buddyName = buddy.name || buddy.member_name || `참여자 ${buddyId}`;
+        buddyNameMap.set(buddyId, buddyName);
+      }
+    });
+
+    // 각 slot을 순회하며 날짜별 참여자 목록 생성
+    moimData.slots.forEach((slot) => {
+      if (!slot.date || !slot.buddy) return;
+
+      const pickValue = slot.pick ? Number(slot.pick) : 0;
+      // pick이 -1인 경우는 제외
+      if (pickValue === -1) return;
+
+      try {
+        const slotDate = new Date(slot.date);
+        if (
+          slotDate.getFullYear() === year &&
+          slotDate.getMonth() === month
+        ) {
+          const dateKey = `${slotDate.getFullYear()}-${slotDate.getMonth()}-${slotDate.getDate()}`;
+          const buddyId = Number(slot.buddy);
+          const buddyName = buddyNameMap.get(buddyId);
+          
+          if (buddyName) {
+            const existing = map.get(dateKey) || [];
+            // 중복 제거
+            if (!existing.includes(buddyName)) {
+              map.set(dateKey, [...existing, buddyName]);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to parse slot date:", slot.date);
+      }
+    });
+
+    return map;
+  }, [moimData?.slots, moimData?.buddies, currentCalendarYear, currentCalendarMonth]);
 
   // 추천 일정 리스트 조회 함수 (재사용 가능하도록 분리)
   const fetchTopTimeslots = useCallback(async () => {
@@ -293,6 +381,23 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
         .filter((slot: { votes: number }) => {
           return slot.votes >= 1;
         })
+        // 캘박된 슬롯을 우선순위로 정렬
+        .sort((a: { dateObj?: Date }, b: { dateObj?: Date }) => {
+          if (!a.dateObj || !b.dateObj) return 0;
+          
+          const getDateKey = (date: Date) => {
+            return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+          };
+          
+          const aIsFixed = fixedSlots.has(getDateKey(a.dateObj));
+          const bIsFixed = fixedSlots.has(getDateKey(b.dateObj));
+          
+          // 캘박된 항목을 먼저
+          if (aIsFixed && !bIsFixed) return -1;
+          if (!aIsFixed && bIsFixed) return 1;
+          
+          return 0;
+        })
         // 최대 10개까지만 표시
         .slice(0, 10);
       
@@ -301,7 +406,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       console.error("Error fetching top timeslots:", error);
       setSlotList([]);
     }
-  }, [moimId, currentCalendarYear, currentCalendarMonth, buddyList]);
+  }, [moimId, currentCalendarYear, currentCalendarMonth, buddyList, fixedSlots]);
 
   // 캘린더 year/month 변경 시 top 리스트 조회
   useEffect(() => {
@@ -613,6 +718,40 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
     setFocusedDateKeys(selectedBuddyVotedDateKeys);
   }, [selectedBuddyVotedDateKeys]);
 
+  // unavailableDateKeys 계산 및 업데이트
+  useEffect(() => {
+    if (!moimData?.slots) {
+      setUnavailableDateKeys(new Set());
+      return;
+    }
+
+    const unavailableKeys = new Set<string>();
+    const year = currentCalendarYear;
+    const month = currentCalendarMonth;
+
+    moimData.slots.forEach((slot) => {
+      if (!slot.date) return;
+      
+      const pickValue = slot.pick ? Number(slot.pick) : 0;
+      if (pickValue === -1) {
+        try {
+          const slotDate = new Date(slot.date);
+          if (
+            slotDate.getFullYear() === year &&
+            slotDate.getMonth() === month
+          ) {
+            const dateKey = `${slotDate.getFullYear()}-${slotDate.getMonth()}-${slotDate.getDate()}`;
+            unavailableKeys.add(dateKey);
+          }
+        } catch (e) {
+          console.warn("Failed to parse slot date:", slot.date);
+        }
+      }
+    });
+
+    setUnavailableDateKeys(unavailableKeys);
+  }, [moimData?.slots, currentCalendarYear, currentCalendarMonth]);
+
   // 특정 날짜에 해당 사용자의 slot이 존재하는지 확인 (모임 + 사용자 키)
   const checkSlotExists = async (dateStr: string, buddyId: string): Promise<boolean> => {
     if (!moimId || !buddyId) {
@@ -657,37 +796,80 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       const day = String(date.getDate()).padStart(2, "0");
       const dateStr = `${year}-${month}-${day}`;
 
-      // 모임 + 버디 조합으로 해당 날짜의 slot이 존재하는지 확인
-      const slotExists = await checkSlotExists(dateStr, String(selectedBuddyId));
+      // "안 되는 날" 모드일 때는 pick: -1로 생성/업데이트
+      if (voteFilterMode === 'unavailable') {
+        // 기존 slot이 있는지 확인
+        const slotExists = await checkSlotExists(dateStr, String(selectedBuddyId));
+        
+        if (slotExists) {
+          // 기존 slot이 있으면 pick을 -1로 업데이트
+          const updateResponse = await fetch("/api/slot", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              moimId: moimId,
+              buddyId: selectedBuddyId,
+              date: dateStr,
+              pick: -1,
+            }),
+          });
 
-      if (slotExists) {
-        // 모임 + 버디 조합의 slot이 존재하면 삭제 (토글)
-        console.log(`Deleting slot: moim=${moimId}, buddy=${selectedBuddyId}, date=${dateStr}`);
-        const deleteResponse = await fetch(`/api/slot?moimId=${moimId}&buddyId=${selectedBuddyId}&date=${dateStr}`, {
-          method: "DELETE",
-        });
+          if (!updateResponse.ok) {
+            const errorData = await updateResponse.json().catch(() => ({}));
+            throw new Error(errorData.error || "Failed to update slot");
+          }
+        } else {
+          // slot이 없으면 pick: -1로 생성
+          const createResponse = await fetch("/api/slot", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              moimId: moimId,
+              buddyId: selectedBuddyId,
+              date: dateStr,
+              pick: -1,
+            }),
+          });
 
-        if (!deleteResponse.ok) {
-          const errorData = await deleteResponse.json().catch(() => ({}));
-          throw new Error(errorData.error || "Failed to delete slot");
+          if (!createResponse.ok) {
+            const errorData = await createResponse.json().catch(() => ({}));
+            throw new Error(errorData.error || "Failed to create slot");
+          }
         }
       } else {
-        // 모임 + 버디 조합의 slot이 없으면 생성
-        console.log(`Creating slot: moim=${moimId}, buddy=${selectedBuddyId}, date=${dateStr}`);
-        const createResponse = await fetch("/api/slot", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            moimId: moimId,
-            buddyId: selectedBuddyId,
-            date: dateStr,
-            // begin과 end는 선택사항 (현재는 null로 설정)
-          }),
-        });
+        // 일반 모드: 기존 토글 로직
+        const slotExists = await checkSlotExists(dateStr, String(selectedBuddyId));
 
-        if (!createResponse.ok) {
-          const errorData = await createResponse.json().catch(() => ({}));
-          throw new Error(errorData.error || "Failed to create slot");
+        if (slotExists) {
+          // 모임 + 버디 조합의 slot이 존재하면 삭제 (토글)
+          console.log(`Deleting slot: moim=${moimId}, buddy=${selectedBuddyId}, date=${dateStr}`);
+          const deleteResponse = await fetch(`/api/slot?moimId=${moimId}&buddyId=${selectedBuddyId}&date=${dateStr}`, {
+            method: "DELETE",
+          });
+
+          if (!deleteResponse.ok) {
+            const errorData = await deleteResponse.json().catch(() => ({}));
+            throw new Error(errorData.error || "Failed to delete slot");
+          }
+        } else {
+          // 모임 + 버디 조합의 slot이 없으면 생성
+          console.log(`Creating slot: moim=${moimId}, buddy=${selectedBuddyId}, date=${dateStr}`);
+          const createResponse = await fetch("/api/slot", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              moimId: moimId,
+              buddyId: selectedBuddyId,
+              date: dateStr,
+              pick: 1,
+              // begin과 end는 선택사항 (현재는 null로 설정)
+            }),
+          });
+
+          if (!createResponse.ok) {
+            const errorData = await createResponse.json().catch(() => ({}));
+            throw new Error(errorData.error || "Failed to create slot");
+          }
         }
       }
 
@@ -934,8 +1116,16 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                   </svg>
                 )}
               </button>
+              <select
+                value={voteFilterMode}
+                onChange={(e) => setVoteFilterMode(e.target.value as 'available' | 'unavailable')}
+                className="px-2 py-1 pr-6 text-xs bg-white text-[#333333] [font-family:var(--font-body)] focus:outline-none border border-gray-300 rounded-md"
+              >
+                <option value="available">되는 날</option>
+                <option value="unavailable">안 되는 날</option>
+              </select>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               {/* 데스크톱 사이드바 토글 버튼 */}
               <div className="hidden md:flex items-center gap-2">
                 <button
@@ -959,23 +1149,33 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                   </svg>
                 </button>
               </div>
-              <span className="text-sm text-[#333333] [font-family:var(--font-body)]">
-                내 투표만 보기
-              </span>
-              <button
-                onClick={() => setShowOnlyMyVotes(!showOnlyMyVotes)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-white/60 focus:ring-offset-2 backdrop-blur-sm ${
-                  showOnlyMyVotes ? "bg-white/60" : "bg-white/40"
-                }`}
-                disabled={!selectedBuddyId}
-                title={!selectedBuddyId ? "참여자를 선택해주세요" : ""}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    showOnlyMyVotes ? "translate-x-6" : "translate-x-1"
-                  }`}
-                />
-              </button>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-[#333333] [font-family:var(--font-body)]">
+                  내 투표만 보기
+                </span>
+                <button
+                  onClick={() => {
+                    if (selectedBuddyId) {
+                      setShowOnlyMyVotes(!showOnlyMyVotes);
+                      if (!showOnlyMyVotes) {
+                        // 토글을 켤 때 필터 모드를 'available'로 초기화
+                        setVoteFilterMode('available');
+                      }
+                    }
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none backdrop-blur-sm ${
+                    showOnlyMyVotes ? "bg-[#333333]" : "bg-gray-300"
+                  } ${!selectedBuddyId ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                  disabled={!selectedBuddyId}
+                  title={!selectedBuddyId ? "참여자를 선택해주세요" : ""}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      showOnlyMyVotes ? "translate-x-6" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -987,9 +1187,11 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                 maxVotes={Math.max(...calendarAvailabilityData, 1)}
                 selectedDateKey={selectedDateKey}
                 focusedDateKeys={focusedDateKeys}
-                highlightedDateKeys={showOnlyMyVotes ? myVotedDateKeys : undefined}
+                highlightedDateKeys={showOnlyMyVotes ? (filteredDateKeys || undefined) : undefined}
                 fixedDateKeys={fixedSlots}
                 totalMembers={buddyList.length}
+                unavailableDateKeys={unavailableDateKeys}
+                dateVotersMap={dateVotersMap}
                 onDateSelect={handleCalendarDateClick}
                 onMonthChange={(year, month) => {
                   setCurrentCalendarYear(year);

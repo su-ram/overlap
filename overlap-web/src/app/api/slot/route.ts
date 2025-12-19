@@ -6,7 +6,7 @@ export async function POST(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const body = await req.json();
-    const { moimId, buddyId, date, begin, end } = body;
+    const { moimId, buddyId, date, begin, end, pick } = body;
 
     if (!moimId || !buddyId || !date) {
       return NextResponse.json(
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
         date: date, // YYYY-MM-DD 형식
         begin: begin || null,
         end: end || null,
-        pick: 1, // 기본값 1 (투표 수)
+        pick: pick !== undefined ? pick : 1, // pick 값이 제공되면 사용, 없으면 기본값 1
       })
       .select()
       .single();
@@ -126,12 +126,12 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// PATCH /api/slot - slot 업데이트 (fix 속성 등)
+// PATCH /api/slot - slot 업데이트 (fix 속성, pick 등)
 export async function PATCH(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const body = await req.json();
-    const { moimId, date, fix } = body;
+    const { moimId, date, fix, buddyId, pick } = body;
 
     if (!moimId || !date) {
       return NextResponse.json(
@@ -140,18 +140,27 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    // 해당 날짜의 모든 slot을 업데이트
+    // 해당 날짜의 slot을 업데이트
     const updateData: any = {};
     if (fix !== undefined) {
       updateData.fix = fix;
     }
+    if (pick !== undefined) {
+      updateData.pick = pick;
+    }
 
-    const { data, error } = await supabase
+    let query = supabase
       .from("slot")
       .update(updateData)
       .eq("moim", moimId)
-      .eq("date", date)
-      .select();
+      .eq("date", date);
+
+    // buddyId가 제공되면 특정 참여자의 slot만 업데이트
+    if (buddyId) {
+      query = query.eq("buddy", buddyId);
+    }
+
+    const { data, error } = await query.select();
 
     if (error) {
       return NextResponse.json(
@@ -168,6 +177,8 @@ export async function PATCH(req: NextRequest) {
     );
   }
 }
+
+
 
 
 

@@ -45,23 +45,24 @@ export function TopTime({ slots, onDateClick, selectedDateKey, fixedSlots, total
               >
                 {index + 1}
               </div>
-              <span className={`text-[10px] flex-1 [font-family:var(--font-body)] ${
-                isSelected ? "text-[#333333]" : "text-[#333333]"
-              }`}>{slot.date}</span>
+              <div className="flex items-center gap-1 flex-1">
+                <span className={`text-[10px] [font-family:var(--font-body)] ${
+                  isSelected ? "text-[#333333]" : "text-[#333333]"
+                }`}>{slot.date}</span>
+              </div>
               <div className="flex items-center gap-1 shrink-0">
                 {slot.votes !== undefined && totalMembers && slot.votes === totalMembers && (
                   <span className="inline-flex items-center px-1 py-0.5 rounded-full text-[9px] font-medium bg-yellow-100 text-yellow-800 border border-yellow-300 [font-family:var(--font-body)]">
                     추천
                   </span>
                 )}
-                {slot.dateObj && fixedSlots?.has(getDateKey(slot.dateObj)) ? (
-                  <span className="inline-flex items-center px-1 py-0.5 rounded-full text-[9px] font-medium bg-red-100 text-red-800 border border-red-300 [font-family:var(--font-body)]">
+                {slot.votes !== undefined && (
+                  <span className="text-[9px] text-gray-500 [font-family:var(--font-body)]">{slot.votes}명</span>
+                )}
+                {slot.dateObj && fixedSlots?.has(getDateKey(slot.dateObj)) && (
+                  <span className="inline-flex items-center px-1 py-0.5 rounded-full text-[9px] font-medium bg-red-100 text-red-800 border border-red-300 [font-family:var(--font-body)] shrink-0">
                     캘박
                   </span>
-                ) : (
-                  slot.votes !== undefined && (
-                    <span className="text-[9px] text-gray-500 [font-family:var(--font-body)]">{slot.votes}명</span>
-                  )
                 )}
               </div>
             </li>
@@ -71,6 +72,8 @@ export function TopTime({ slots, onDateClick, selectedDateKey, fixedSlots, total
     </div>
   );
 }
+
+
 
 
 

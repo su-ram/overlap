@@ -5,6 +5,15 @@ import Holidays from 'date-holidays';
 // 대한민국 공휴일 인스턴스 생성
 const hd = new Holidays('KR');
 
+type HolidayInfo = {
+  date: string;
+  start: Date;
+  end: Date;
+  name: string;
+  type: string;
+  [key: string]: any;
+};
+
 /**
  * 특정 날짜가 공휴일인지 확인
  */
@@ -24,8 +33,13 @@ export function getHolidayName(date: Date): string | null {
   
   // holiday는 배열일 수 있으므로 첫 번째 항목의 name 반환
   if (Array.isArray(holiday)) {
-    return holiday[0]?.name || null;
+    const firstHoliday = holiday[0] as HolidayInfo;
+    return firstHoliday?.name || null;
   }
   
-  return holiday.name || null;
+  // holiday가 객체인 경우
+  const holidayObj = holiday as HolidayInfo;
+  return holidayObj?.name || null;
 }
+
+
