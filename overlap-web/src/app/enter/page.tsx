@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { buttonPrimary } from "@/colors";
@@ -89,6 +90,35 @@ export default function EnterPage() {
           />
         </div>
       </div>
+      
+      {/* 플로팅 버튼 */}
+      <motion.button
+        onClick={() => {
+          // 플로팅 버튼 클릭 시 동작 (필요시 수정)
+          const form = document.querySelector('form');
+          if (form) {
+            const input = form.querySelector('input') as HTMLInputElement;
+            if (input) {
+              input.focus();
+            }
+          }
+        }}
+        className="fixed bottom-6 right-6 z-40 shadow-lg hover:opacity-80 transition-opacity"
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.95 }}
+        transition={{ type: "spring", stiffness: 400, damping: 17 }}
+        aria-label="빠른 액션"
+        title="빠른 액션"
+      >
+        <Image
+          src="/floattingbutton.svg"
+          alt="플로팅 버튼"
+          width={56}
+          height={56}
+          className="w-14 h-14"
+        />
+      </motion.button>
+      
       <style jsx global>{`
         @keyframes float {
           0% {

@@ -50,7 +50,7 @@ export function ParticipantCard({ name, index, isEmpty = false, onClick, isSelec
     <div className="w-full">
       <div 
         onClick={isEmpty ? undefined : onClick}
-        className={`flex items-center gap-2 px-3 py-2 transition-all duration-300 ${
+        className={`flex items-center gap-1 px-1 py-1 transition-all duration-300 ${
           isEmpty 
             ? "opacity-40 cursor-not-allowed" 
             : isSelected 
@@ -59,9 +59,9 @@ export function ParticipantCard({ name, index, isEmpty = false, onClick, isSelec
         }`}
       >
         {name && (
-          <div className="flex-1 min-w-0 flex items-center gap-2">
-            <span className="text-lg flex-shrink-0">{emoji}</span>
-            <div className={`text-sm [font-family:var(--font-body)] ${
+          <div className="flex-1 min-w-0 flex items-center gap-1">
+            <span className="text-xs flex-shrink-0">{emoji}</span>
+            <div className={`text-[10px] [font-family:var(--font-body)] ${
               isEmpty 
                 ? "text-gray-500 font-normal" 
                 : isSelected
@@ -76,15 +76,15 @@ export function ParticipantCard({ name, index, isEmpty = false, onClick, isSelec
       
       {/* 드롭다운: 선택되었을 때 투표한 날짜 목록 표시 */}
       {isSelected && !isEmpty && votedDates.length > 0 && (
-        <div className="mt-1 ml-3 border-l-2 border-gray-200 pl-3 py-1.5">
-          <div className="text-xs font-medium text-gray-600 mb-2 [font-family:var(--font-body)]">
+        <div className="mt-0.5 ml-1 border-l-2 border-gray-200 pl-1 py-1">
+          <div className="text-[9px] font-medium text-gray-600 mb-1 [font-family:var(--font-body)]">
             투표한 날짜 ({votedDates.length}일)
           </div>
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1">
             {votedDates.map((date, idx) => (
               <div
                 key={idx}
-                className="text-xs text-gray-700 [font-family:var(--font-body)] text-left"
+                className="text-[9px] text-gray-700 [font-family:var(--font-body)] text-left"
               >
                 {formatDate(date)}
               </div>
@@ -95,5 +95,6 @@ export function ParticipantCard({ name, index, isEmpty = false, onClick, isSelec
     </div>
   );
 }
+
 
 

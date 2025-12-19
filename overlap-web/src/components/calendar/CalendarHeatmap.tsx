@@ -14,20 +14,17 @@ type CalendarHeatmapProps = {
   onMonthChange?: (year: number, month: number) => void; // 달 변경 시 호출
   highlightedDateKeys?: Set<string>; // 하이라이트할 날짜 키들 ("내 투표만 보기" 모드일 때)
   fixedDateKeys?: Set<string>; // fix된 날짜 키들
+  totalMembers?: number; // 모임 전체 인원 수 (70% 강조 처리용)
 };
 
 const densityClass = (level: number, isSelected: boolean = false) => {
   // 로고 색상 기준 초록색 (green2: light: #C8E6C9, medium: #81C784, deep: #4CAF50)
-  // 투표 수에 따라 초록색의 명도를 조절 - 더 연한 단계로 조정
+  // 투표 수에 따라 초록색의 명도를 조절 - 3단계로 축소
   switch (level) {
-    case 4:
-      return "bg-[#81C784] text-white"; // medium green (더 연하게)
-    case 3:
-      return "bg-[#A5D6A7] text-[#333333]"; // light-medium green
     case 2:
-      return "bg-[#C8E6C9] text-[#333333]"; // light green
+      return "bg-[#81C784] text-white"; // medium green (높은 투표)
     case 1:
-      return "bg-[#E8F5E9] text-[#333333]"; // very light green
+      return "bg-[#C8E6C9] text-[#333333]"; // light green (중간 투표)
     default:
       return "bg-white text-[#333333]"; // 0명은 흰색
   }
@@ -43,6 +40,7 @@ export function CalendarHeatmap({
   onMonthChange,
   highlightedDateKeys,
   fixedDateKeys,
+  totalMembers,
 }: CalendarHeatmapProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
@@ -97,15 +95,13 @@ export function CalendarHeatmap({
     }
     
     const votes = availabilityData[dayIndex];
-    // 투표 수를 0-4 레벨로 변환
+    // 투표 수를 0-2 레벨로 변환 (3단계)
     if (maxVotes === 0) return 0;
     const ratio = votes / maxVotes;
     
-    if (ratio >= 0.8) return 4;
-    if (ratio >= 0.6) return 3;
-    if (ratio >= 0.4) return 2;
-    if (ratio >= 0.2) return 1;
-    return 0;
+    if (ratio >= 0.5) return 2; // 높은 투표
+    if (ratio > 0) return 1; // 중간 투표
+    return 0; // 투표 없음
   };
 
   const getDateKey = (date: Date) => {
@@ -132,6 +128,16 @@ export function CalendarHeatmap({
     return fixedDateKeys?.has(dateKey) ?? false;
   };
 
+  // 70% 이상 투표한 날짜인지 확인
+  const isDateHighVote = (dayIndex: number): boolean => {
+    if (!availabilityData || !availabilityData[dayIndex] || !totalMembers || totalMembers === 0) {
+      return false;
+    }
+    const votes = availabilityData[dayIndex];
+    const ratio = votes / totalMembers;
+    return ratio >= 0.7;
+  };
+
   // 외부에서 날짜 선택 시 처리
   useEffect(() => {
     if (selectedDateKey) {
@@ -156,34 +162,34 @@ export function CalendarHeatmap({
   };
 
   return (
-    <div className="w-full h-full bg-[#FAF9F6] p-2 md:p-3 lg:p-4 flex flex-col">
+    <div className="w-full h-full bg-[#FAF9F6] p-0.5 md:p-2 lg:p-3 flex flex-col">
       {/* 헤더 */}
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-1.5 flex items-center justify-between">
         <button
           onClick={goToPreviousMonth}
-          className="p-2 hover:bg-white/30 backdrop-blur-sm rounded-lg transition-all"
+          className="p-1.5 hover:bg-white/30 backdrop-blur-sm rounded-lg transition-all"
         >
-          <ChevronLeft className="h-5 w-5 text-[#333333]" />
+          <ChevronLeft className="h-4 w-4 text-[#333333]" />
         </button>
-        <h2 className="text-xl font-semibold text-[#333333] [font-family:var(--font-headline)]">
+        <h2 className="text-lg font-semibold text-[#333333] [font-family:var(--font-headline)]">
           {year}년 {monthNames[month]}
         </h2>
         <button
           onClick={goToNextMonth}
-          className="p-2 hover:bg-white/30 backdrop-blur-sm rounded-lg transition-all"
+          className="p-1.5 hover:bg-white/30 backdrop-blur-sm rounded-lg transition-all"
         >
-          <ChevronRight className="h-5 w-5 text-[#333333]" />
+          <ChevronRight className="h-4 w-4 text-[#333333]" />
         </button>
       </div>
 
       {/* 범례 */}
-      <div className="mb-2 flex items-center justify-center gap-3 text-xs text-[#333333] [font-family:var(--font-body)]">
+      <div className="mb-1.5 flex items-center justify-center gap-2 text-[10px] text-[#333333] [font-family:var(--font-body)]">
         <span>0명</span>
-        {[0, 1, 2, 3, 4].map((level) => (
+        {[0, 1, 2].map((level) => (
           <span
             key={level}
             className={cn(
-              "h-4 w-6 border border-[#DDDDDD]",
+              "h-3 w-5 border border-[#DDDDDD]",
               densityClass(level),
             )}
           />
@@ -196,7 +202,7 @@ export function CalendarHeatmap({
         {dayLabels.map((day) => (
           <div
             key={day}
-            className="text-center text-sm font-semibold text-[#333333] py-2 [font-family:var(--font-body)]"
+            className="text-center text-xs font-semibold text-[#333333] py-1 [font-family:var(--font-body)]"
           >
             {day}
           </div>
@@ -218,34 +224,60 @@ export function CalendarHeatmap({
           const fixed = isDateFixed(dayInfo.date);
           const availabilityLevel = getAvailabilityLevel(dayIndex);
           const votes = availabilityData?.[dayIndex] ?? 0;
+          const isHighVote = isDateHighVote(dayIndex);
+          const isHighlightMode = highlightedDateKeys !== undefined;
+          
+          // 오늘 날짜인지 확인
+          const today = new Date();
+          const isToday = 
+            dayInfo.date.getFullYear() === today.getFullYear() &&
+            dayInfo.date.getMonth() === today.getMonth() &&
+            dayInfo.date.getDate() === today.getDate();
 
           return (
             <button
               key={dayIndex}
               onClick={() => handleDateClick(dayInfo.date)}
               className={cn(
-                "h-full rounded-sm border border-gray-200/50 text-sm font-medium transition-all [font-family:var(--font-body)] overflow-visible backdrop-blur-[6px] group",
+                "h-full rounded-sm border text-xs font-medium transition-all [font-family:var(--font-body)] overflow-visible backdrop-blur-[6px] group",
                 "hover:opacity-80 active:scale-[0.95] active:translate-y-0.5",
                 "transform transition-transform duration-150 ease-out",
-                highlighted
-                  ? "bg-white/60 backdrop-blur-md border-white/60 text-[#333333]"
-                  : focused && !selected
-                  ? "bg-blue-100/70 border-blue-300" 
+                // "내 투표만 보기" 모드일 때 내가 투표한 날짜만 강조
+                isHighlightMode && highlighted
+                  ? "bg-[#C8E6C9] border border-gray-200/50 text-[#333333]" // 내가 투표한 날짜 강조 (테두리 없음)
                   : "",
-                // highlighted가 아닐 때만 densityClass 적용
+                // 일반 모드일 때
+                !isHighlightMode && isHighVote && !highlighted
+                  ? "border-2 border-[#4CAF50] border-opacity-80 shadow-md"
+                  : !isHighlightMode && !highlighted
+                  ? "border border-gray-200/50"
+                  : "",
+                !isHighlightMode && highlighted
+                  ? "bg-white/60 backdrop-blur-md border-white/60 text-[#333333]"
+                  : "",
+                // densityClass 적용 (내 투표만 보기 모드에서도 일반 날짜는 일반 스타일)
                 !highlighted && densityClass(availabilityLevel, false)
               )}
             >
-              <div className="relative flex flex-col items-start justify-start h-full p-1 w-full">
-                <div className="flex items-center gap-1">
-                  <span>{dayInfo.day}</span>
+              <div className="relative flex flex-col items-start justify-start h-full p-0.5 w-full">
+                <div className="flex items-center gap-0.5">
+                  {isToday ? (
+                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-dashed border-[#333333] text-xs font-medium">
+                      {dayInfo.day}
+                    </span>
+                  ) : (
+                    <span>{dayInfo.day}</span>
+                  )}
                   {fixed && (
-                    <span className="text-xs">📌</span>
+                    <span className="text-[10px]">📌</span>
                   )}
                 </div>
+                {focused && (
+                  <span className="absolute bottom-0.5 right-0.5 text-[8px] text-gray-600">●</span>
+                )}
               </div>
               {/* Tooltip */}
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-nowrap z-50 [font-family:var(--font-body)]">
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-nowrap z-50 [font-family:var(--font-body)]">
                 <span>{votes}명 투표</span>
                 {/* Tooltip 화살표 */}
                 <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1">

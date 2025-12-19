@@ -64,8 +64,6 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
   const [toastMessage, setToastMessage] = useState<string>("");
   const [isInputFocused, setIsInputFocused] = useState<boolean>(false);
   const isInputFocusedRef = useRef<boolean>(false);
-  const [showConfirmAlert, setShowConfirmAlert] = useState<boolean>(false);
-  const [selectedSlotForConfirm, setSelectedSlotForConfirm] = useState<{ date: string; dateObj?: Date } | null>(null);
   const [fixedSlots, setFixedSlots] = useState<Set<string>>(new Set());
   const [showCelebration, setShowCelebration] = useState<boolean>(false);
 
@@ -150,9 +148,9 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
     return buddy?.id || null;
   }, [selectedParticipantIndices, buddyList]);
 
-  // "내 투표만 보기"가 on일 때 선택된 참여자가 투표한 날짜 키 계산
-  const myVotedDateKeys = useMemo(() => {
-    if (!showOnlyMyVotes || !selectedBuddyId || !moimData?.slots) {
+  // 선택된 참여자가 투표한 날짜 키 계산 (항상 계산)
+  const selectedBuddyVotedDateKeys = useMemo(() => {
+    if (!selectedBuddyId || !moimData?.slots) {
       return new Set<string>();
     }
 
@@ -180,7 +178,15 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
     });
 
     return dateKeys;
-  }, [showOnlyMyVotes, selectedBuddyId, moimData?.slots, currentCalendarYear, currentCalendarMonth]);
+  }, [selectedBuddyId, moimData?.slots, currentCalendarYear, currentCalendarMonth]);
+
+  // "내 투표만 보기"가 on일 때 선택된 참여자가 투표한 날짜 키 계산
+  const myVotedDateKeys = useMemo(() => {
+    if (!showOnlyMyVotes) {
+      return new Set<string>();
+    }
+    return selectedBuddyVotedDateKeys;
+  }, [showOnlyMyVotes, selectedBuddyVotedDateKeys]);
 
   // slot 데이터를 캘린더에 매핑 (날짜별 투표 수 집계) - 캘린더에서 보고 있는 달 기준
   const calendarAvailabilityData = useMemo(() => {
@@ -255,38 +261,47 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       
       const dayLabels = ["일", "월", "화", "수", "목", "금", "토"];
       
-      const formattedSlots = slots.map((slot: any) => {
-        let dateObj: Date | undefined;
-        let dateStr = "";
-        
-        // slot에서 date 정보 추출 (RPC 함수 반환 형식에 따라 조정 필요)
-        if (slot.date) {
-          try {
-            dateObj = new Date(slot.date);
-            if (!isNaN(dateObj.getTime())) {
-              const month = dateObj.getMonth() + 1;
-              const day = dateObj.getDate();
-              const dayOfWeek = dateObj.getDay();
-              dateStr = `${month}/${day} (${dayLabels[dayOfWeek]})`;
+      const totalMembers = buddyList.length;
+      
+      const formattedSlots = slots
+        .map((slot: any) => {
+          let dateObj: Date | undefined;
+          let dateStr = "";
+          
+          // slot에서 date 정보 추출 (RPC 함수 반환 형식에 따라 조정 필요)
+          if (slot.date) {
+            try {
+              dateObj = new Date(slot.date);
+              if (!isNaN(dateObj.getTime())) {
+                const month = dateObj.getMonth() + 1;
+                const day = dateObj.getDate();
+                const dayOfWeek = dateObj.getDay();
+                dateStr = `${month}/${day} (${dayLabels[dayOfWeek]})`;
+              }
+            } catch (e) {
+              console.warn("Failed to parse date:", slot.date);
             }
-          } catch (e) {
-            console.warn("Failed to parse date:", slot.date);
           }
-        }
-        
-        return {
-          date: dateStr,
-          dateObj,
-          votes: slot.vote_count || slot.pick || slot.votes || 0,
-        };
-      });
+          
+          return {
+            date: dateStr,
+            dateObj,
+            votes: slot.vote_count || slot.pick || slot.votes || 0,
+          };
+        })
+        // 1명 이상 투표한 날짜만 필터링
+        .filter((slot: { votes: number }) => {
+          return slot.votes >= 1;
+        })
+        // 최대 10개까지만 표시
+        .slice(0, 10);
       
       setSlotList(formattedSlots);
     } catch (error) {
       console.error("Error fetching top timeslots:", error);
       setSlotList([]);
     }
-  }, [moimId, currentCalendarYear, currentCalendarMonth]);
+  }, [moimId, currentCalendarYear, currentCalendarMonth, buddyList]);
 
   // 캘린더 year/month 변경 시 top 리스트 조회
   useEffect(() => {
@@ -369,11 +384,45 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       return;
     }
     
-    // 알럿 창 띄우기
-    const slot = slotList.find(s => s.dateObj && getDateKey(s.dateObj) === dateKey);
-    if (slot) {
-      setSelectedSlotForConfirm({ date: slot.date, dateObj: slot.dateObj });
-      setShowConfirmAlert(true);
+    // 바로 fix 처리 (팝업 없이)
+    if (moimId) {
+      try {
+        // 날짜를 YYYY-MM-DD 형식으로 변환
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        const dateStr = `${year}-${month}-${day}`;
+
+        // API 호출하여 fix: true로 업데이트
+        const response = await fetch("/api/slot", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            moimId: moimId,
+            date: dateStr,
+            fix: true,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || "Failed to update slot");
+        }
+
+        setFixedSlots(prev => new Set(prev).add(dateKey));
+        
+        // 모임 데이터 새로고침 (fix 상태 반영)
+        await refreshMoimData();
+        
+        // Confetti 효과
+        triggerConfetti();
+        
+        // Toast 메시지 표시
+        showToastMessage("만날 날짜가 확정되었습니다! 🎉");
+      } catch (error) {
+        console.error("Error fixing slot:", error);
+        alert(error instanceof Error ? error.message : "슬롯 업데이트에 실패했습니다. 다시 시도해주세요.");
+      }
     }
   };
 
@@ -453,55 +502,6 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
     }, duration + 1000);
   };
 
-  const handleConfirmNo = () => {
-    setShowConfirmAlert(false);
-    setSelectedSlotForConfirm(null);
-  };
-
-  const handleConfirmYes = async () => {
-    if (selectedSlotForConfirm?.dateObj && moimId) {
-      try {
-        // 날짜를 YYYY-MM-DD 형식으로 변환
-        const year = selectedSlotForConfirm.dateObj.getFullYear();
-        const month = String(selectedSlotForConfirm.dateObj.getMonth() + 1).padStart(2, "0");
-        const day = String(selectedSlotForConfirm.dateObj.getDate()).padStart(2, "0");
-        const dateStr = `${year}-${month}-${day}`;
-
-        // API 호출하여 fix: true로 업데이트
-        const response = await fetch("/api/slot", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            moimId: moimId,
-            date: dateStr,
-            fix: true,
-          }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || "Failed to update slot");
-        }
-
-        const dateKey = getDateKey(selectedSlotForConfirm.dateObj);
-        setFixedSlots(prev => new Set(prev).add(dateKey));
-        setShowConfirmAlert(false);
-        setSelectedSlotForConfirm(null);
-        
-        // 모임 데이터 새로고침 (fix 상태 반영)
-        await refreshMoimData();
-        
-        // Confetti 효과
-        triggerConfetti();
-        
-        // Toast 메시지 표시
-        showToastMessage("만날 날짜가 확정되었습니다! 🎉");
-      } catch (error) {
-        console.error("Error fixing slot:", error);
-        alert(error instanceof Error ? error.message : "슬롯 업데이트에 실패했습니다. 다시 시도해주세요.");
-      }
-    }
-  };
 
   // 모임 데이터 새로고침
   const refreshMoimData = async () => {
@@ -602,15 +602,16 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
     if (selectedParticipantIndices.has(index)) {
       // 이미 선택된 참여자를 다시 클릭하면 제거
       setSelectedParticipantIndices(new Set());
-      setFocusedDateKeys(new Set());
     } else {
       // 새로운 참여자 선택 (기존 선택 해제)
       setSelectedParticipantIndices(new Set([index]));
-      // TODO: 선택된 참여자의 투표한 날짜를 가져와서 focusedDateKeys에 설정
-      // 현재는 빈 Set으로 설정
-      setFocusedDateKeys(new Set());
     }
   };
+
+  // 선택된 참여자가 변경될 때 focusedDateKeys 업데이트
+  useEffect(() => {
+    setFocusedDateKeys(selectedBuddyVotedDateKeys);
+  }, [selectedBuddyVotedDateKeys]);
 
   // 특정 날짜에 해당 사용자의 slot이 존재하는지 확인 (모임 + 사용자 키)
   const checkSlotExists = async (dateStr: string, buddyId: string): Promise<boolean> => {
@@ -723,35 +724,6 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
 
   return (
     <div className="relative min-h-screen">
-      {/* 확인 알럿 창 */}
-      {showConfirmAlert && selectedSlotForConfirm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 [font-family:var(--font-body)] animate-in zoom-in-95 duration-200">
-            <div className="text-center mb-6">
-              <p className="text-lg font-semibold text-gray-900 mb-2 [font-family:var(--font-headline)]">
-                {selectedSlotForConfirm.date}
-              </p>
-              <p className="text-base text-gray-600">
-                이 날 만날까?
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={handleConfirmNo}
-                className="flex-1 px-4 py-3 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-all hover:scale-105 active:scale-95"
-              >
-                아니
-              </button>
-              <button
-                onClick={handleConfirmYes}
-                className="flex-1 px-4 py-3 text-sm font-medium text-white bg-[#4CAF50] rounded-lg hover:bg-[#45a049] transition-all hover:scale-105 active:scale-95 shadow-md"
-              >
-                좋아
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Toast 메시지 */}
       {showToast && (
@@ -779,13 +751,13 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       <aside className={`fixed left-0 top-0 z-40 h-screen w-64 bg-[#FAF9F6] border-r border-gray-200 shadow-lg transition-transform duration-300 ease-in-out ${
         isLeftSidebarOpen ? "translate-x-0" : "-translate-x-full"
       }`}>
-        <div className="flex h-full flex-col p-4">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-semibold text-gray-900 [font-family:var(--font-headline)]">참여자</h2>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-white border border-gray-200 text-gray-700 [font-family:var(--font-body)]">
+        <div className="flex h-full flex-col p-3 md:p-4">
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-[#333333] [font-family:var(--font-headline)]">참여자</h2>
+              <p className="mt-1 text-xs text-[#333333] [font-family:var(--font-body)]">
                 {buddyList.length}명
-              </span>
+              </p>
             </div>
             <button
               onClick={() => setIsLeftSidebarOpen(false)}
@@ -904,6 +876,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                   onDateClick={handleDateClickFromSidebar}
                   selectedDateKey={selectedDateKey}
                   fixedSlots={fixedSlots}
+                  totalMembers={buddyList.length}
                 />
               ) : (
                 <div className="text-sm text-[#333333] text-center py-4">
@@ -919,7 +892,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       <div className={`bg-[#FAF9F6] transition-all duration-300 md:min-w-0 ${
         isLeftSidebarOpen ? "md:ml-64" : "md:ml-0"
       } ${isRightSidebarOpen ? "md:mr-64" : "md:mr-0"}`}>
-        <div className="relative min-h-screen md:h-screen px-3 py-6 md:px-4 md:py-8 lg:px-6 lg:py-10 flex flex-col md:overflow-hidden">
+        <div className="relative min-h-screen md:h-screen px-0.5 py-6 md:px-4 md:py-8 lg:px-6 lg:py-10 flex flex-col md:overflow-hidden">
           {/* 모바일 사이드바 토글 버튼 */}
           <div className="flex items-center gap-2 mb-4 md:hidden">
             <button
@@ -1020,6 +993,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                 focusedDateKeys={focusedDateKeys}
                 highlightedDateKeys={showOnlyMyVotes ? myVotedDateKeys : undefined}
                 fixedDateKeys={fixedSlots}
+                totalMembers={buddyList.length}
                 onDateSelect={handleCalendarDateClick}
                 onMonthChange={(year, month) => {
                   setCurrentCalendarYear(year);
@@ -1044,6 +1018,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                       onDateClick={handleDateClickFromSidebar}
                       selectedDateKey={selectedDateKey}
                       fixedSlots={fixedSlots}
+                      totalMembers={buddyList.length}
                     />
                   ) : (
                     <div className="text-sm text-[#333333] text-center py-4">

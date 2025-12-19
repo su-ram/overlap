@@ -9,9 +9,10 @@ type TopTimeProps = {
   onDateClick?: (date: Date) => void;
   selectedDateKey?: string;
   fixedSlots?: Set<string>;
+  totalMembers?: number; // 모임 전체 인원 수
 };
 
-export function TopTime({ slots, onDateClick, selectedDateKey, fixedSlots }: TopTimeProps) {
+export function TopTime({ slots, onDateClick, selectedDateKey, fixedSlots, totalMembers }: TopTimeProps) {
   const getDateKey = (date: Date) => {
     return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
   };
@@ -27,7 +28,7 @@ export function TopTime({ slots, onDateClick, selectedDateKey, fixedSlots }: Top
             <li 
               key={`${slot.date}-${index}`} 
               onClick={() => slot.dateObj && onDateClick?.(slot.dateObj)}
-              className={`flex items-center gap-3 py-4 px-2 cursor-pointer transition-colors border-b border-dashed border-gray-200 ${
+              className={`flex items-center gap-1 py-1 px-1 cursor-pointer transition-colors border-b border-dashed border-gray-200 ${
                 isLast ? "border-b-0" : ""
               } ${
                 isSelected 
@@ -35,12 +36,8 @@ export function TopTime({ slots, onDateClick, selectedDateKey, fixedSlots }: Top
                   : "hover:bg-white/30"
               }`}
             >
-              <div className="inline-flex items-center justify-center w-6 h-6 rounded-full border text-xs font-medium [font-family:var(--font-body)] shrink-0"
-                style={index < 3 ? {
-                  backgroundColor: '#F5EDD9',
-                  borderColor: '#DEB16A',
-                  color: '#BA7C3B'
-                } : {
+              <div className="inline-flex items-center justify-center w-4 h-4 rounded-full border text-[9px] font-medium [font-family:var(--font-body)] shrink-0"
+                style={{
                   backgroundColor: '#FFFFFF',
                   borderColor: '#E5E7EB',
                   color: '#6B7280'
@@ -48,18 +45,25 @@ export function TopTime({ slots, onDateClick, selectedDateKey, fixedSlots }: Top
               >
                 {index + 1}
               </div>
-              <span className={`text-sm flex-1 [font-family:var(--font-body)] ${
+              <span className={`text-[10px] flex-1 [font-family:var(--font-body)] ${
                 isSelected ? "text-[#333333]" : "text-[#333333]"
-              } ${index < 3 ? "font-bold" : ""}`}>{slot.date}</span>
-              {slot.dateObj && fixedSlots?.has(getDateKey(slot.dateObj)) ? (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-300 shrink-0 [font-family:var(--font-body)]">
-                  이때 보자고
-                </span>
-              ) : (
-                slot.votes !== undefined && (
-                  <span className="text-xs text-gray-500 shrink-0 [font-family:var(--font-body)]">{slot.votes}명</span>
-                )
-              )}
+              }`}>{slot.date}</span>
+              <div className="flex items-center gap-1 shrink-0">
+                {slot.votes !== undefined && totalMembers && slot.votes === totalMembers && (
+                  <span className="inline-flex items-center px-1 py-0.5 rounded-full text-[9px] font-medium bg-yellow-100 text-yellow-800 border border-yellow-300 [font-family:var(--font-body)]">
+                    추천
+                  </span>
+                )}
+                {slot.dateObj && fixedSlots?.has(getDateKey(slot.dateObj)) ? (
+                  <span className="inline-flex items-center px-1 py-0.5 rounded-full text-[9px] font-medium bg-red-100 text-red-800 border border-red-300 [font-family:var(--font-body)]">
+                    이때 보자고
+                  </span>
+                ) : (
+                  slot.votes !== undefined && (
+                    <span className="text-[9px] text-gray-500 [font-family:var(--font-body)]">{slot.votes}명</span>
+                  )
+                )}
+              </div>
             </li>
           );
         })}
@@ -67,5 +71,6 @@ export function TopTime({ slots, onDateClick, selectedDateKey, fixedSlots }: Top
     </div>
   );
 }
+
 
 
