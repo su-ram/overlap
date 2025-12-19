@@ -165,6 +165,14 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       const slotBuddyId = slot.buddy ? Number(slot.buddy) : null;
       if (slotBuddyId !== selectedBuddyId) return;
 
+      const pickValue = slot.pick !== undefined && slot.pick !== null ? Number(slot.pick) : 0;
+      
+      // pick: -1인 경우는 제외 (안 되는 날로 투표한 날은 selectedUserUnavailableDateKeys에 포함됨)
+      if (pickValue === -1) return;
+      
+      // pick이 0이거나 undefined인 경우는 투표하지 않은 것으로 간주 (제외)
+      if (pickValue <= 0) return;
+
       try {
         const slotDate = new Date(slot.date);
         if (
@@ -384,6 +392,43 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
     return map;
   }, [moimData?.slots, moimData?.buddies, currentCalendarYear, currentCalendarMonth]);
 
+  // 현재 선택된 사용자가 "안 되는 날"로 선택한 날짜 목록
+  const selectedUserUnavailableDateKeys = useMemo(() => {
+    const dateKeys = new Set<string>();
+    
+    if (!moimData?.slots || !selectedBuddyId) {
+      return dateKeys;
+    }
+
+    const year = currentCalendarYear;
+    const month = currentCalendarMonth;
+
+    moimData.slots.forEach((slot) => {
+      if (!slot.date || !slot.buddy) return;
+      
+      const slotBuddyId = slot.buddy ? Number(slot.buddy) : null;
+      if (slotBuddyId !== selectedBuddyId) return;
+      
+      const pickValue = slot.pick ? Number(slot.pick) : 0;
+      if (pickValue === -1) {
+        try {
+          const slotDate = new Date(slot.date);
+          if (
+            slotDate.getFullYear() === year &&
+            slotDate.getMonth() === month
+          ) {
+            const dateKey = `${slotDate.getFullYear()}-${slotDate.getMonth()}-${slotDate.getDate()}`;
+            dateKeys.add(dateKey);
+          }
+        } catch (e) {
+          console.warn("Failed to parse slot date:", slot.date);
+        }
+      }
+    });
+
+    return dateKeys;
+  }, [moimData?.slots, selectedBuddyId, currentCalendarYear, currentCalendarMonth]);
+
   // 추천 일정 리스트 조회 함수 (재사용 가능하도록 분리)
   const fetchTopTimeslots = useCallback(async () => {
     if (!moimId) return;
@@ -501,6 +546,19 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
   useEffect(() => {
     fetchTopTimeslots();
   }, [fetchTopTimeslots]);
+
+  // 선택된 참여자가 변경될 때 타임 슬롯 정보 초기화 및 API 다시 호출
+  useEffect(() => {
+    if (selectedBuddyId !== null) {
+      // 타임 슬롯 정보 초기화
+      setSlotList([]);
+      // API 다시 호출
+      fetchTopTimeslots();
+    } else {
+      // 참여자가 선택되지 않았을 때도 초기화
+      setSlotList([]);
+    }
+  }, [selectedBuddyId, fetchTopTimeslots]);
 
   const getDateKey = (date: Date) => {
     return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
@@ -802,10 +860,17 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
     }
   };
 
-  // 선택된 참여자가 변경될 때 focusedDateKeys 업데이트
+  // 선택된 참여자가 투표한 모든 날짜 (일반 투표 + 안 되는 날) - useMemo로 안정화
+  const allVotedDateKeys = useMemo(() => {
+    const allKeys = new Set(selectedBuddyVotedDateKeys);
+    selectedUserUnavailableDateKeys.forEach(key => allKeys.add(key));
+    return allKeys;
+  }, [selectedBuddyVotedDateKeys, selectedUserUnavailableDateKeys]);
+
+  // 선택된 참여자가 변경될 때 focusedDateKeys 업데이트 (투표한 날짜 + 안 되는 날로 투표한 날짜)
   useEffect(() => {
-    setFocusedDateKeys(selectedBuddyVotedDateKeys);
-  }, [selectedBuddyVotedDateKeys]);
+    setFocusedDateKeys(allVotedDateKeys);
+  }, [allVotedDateKeys]);
 
   // unavailableDateKeys 계산 및 업데이트
   useEffect(() => {
@@ -865,6 +930,32 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
     }
   };
 
+  // 특정 날짜에 해당 사용자의 slot 정보 가져오기 (pick 값 포함)
+  const getSlotInfo = async (dateStr: string, buddyId: string): Promise<{ exists: boolean; pick?: number }> => {
+    if (!moimId || !buddyId) {
+      return { exists: false };
+    }
+
+    try {
+      const response = await fetch(`/api/slot?moimId=${moimId}&buddyId=${buddyId}&date=${dateStr}`);
+      if (!response.ok) {
+        return { exists: false };
+      }
+
+      const data = await response.json();
+      const slots = data.slots || [];
+      if (slots.length > 0) {
+        const slot = slots[0];
+        const pickValue = slot.pick !== undefined && slot.pick !== null ? Number(slot.pick) : undefined;
+        return { exists: true, pick: pickValue };
+      }
+      return { exists: false };
+    } catch (error) {
+      console.error("Error getting slot info:", error);
+      return { exists: false };
+    }
+  };
+
   // 캘린더 날짜 클릭 핸들러 (토글 기능)
   const handleCalendarDateClick = async (date: Date) => {
     // 참여자가 선택되지 않았으면 알림 후 중단
@@ -885,12 +976,22 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       const day = String(date.getDate()).padStart(2, "0");
       const dateStr = `${year}-${month}-${day}`;
 
-      // "안 되는 날" 모드일 때는 pick: -1로 생성/업데이트
+      // "안 되는 날" 모드일 때는 pick: -1로 생성/업데이트 또는 취소 (토글)
       if (voteFilterMode === 'unavailable') {
-        // 기존 slot이 있는지 확인
-        const slotExists = await checkSlotExists(dateStr, String(selectedBuddyId));
+        // 기존 slot 정보 확인 (pick 값 포함)
+        const slotInfo = await getSlotInfo(dateStr, String(selectedBuddyId));
         
-        if (slotExists) {
+        if (slotInfo.exists && slotInfo.pick === -1) {
+          // 이미 pick: -1인 경우, 취소 (삭제)
+          const deleteResponse = await fetch(`/api/slot?moimId=${moimId}&buddyId=${selectedBuddyId}&date=${dateStr}`, {
+            method: "DELETE",
+          });
+
+          if (!deleteResponse.ok) {
+            const errorData = await deleteResponse.json().catch(() => ({}));
+            throw new Error(errorData.error || "Failed to delete slot");
+          }
+        } else if (slotInfo.exists) {
           // 기존 slot이 있으면 pick을 -1로 업데이트
           const updateResponse = await fetch("/api/slot", {
             method: "PATCH",
@@ -1019,13 +1120,13 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       )}
 
       {/* 좌측 사이드바 - 참여자 */}
-      <aside className={`fixed left-0 top-0 z-40 h-screen w-64 bg-[#FAF9F6] border-r border-gray-200 shadow-lg transition-transform duration-300 ease-in-out ${
+      <aside className={`fixed left-0 top-0 z-40 h-screen w-64 bg-white border-r border-gray-200 transition-transform duration-300 ease-in-out ${
         isLeftSidebarOpen ? "translate-x-0" : "-translate-x-full"
       }`}>
         <div className="flex h-full flex-col p-3 md:p-4">
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <h2 className="text-base font-semibold text-[#333333] [font-family:var(--font-headline)]">
+              <h2 className="text-xs font-semibold text-[#333333] [font-family:var(--font-headline)]">
                 참여자 ({buddyList.length}명)
               </h2>
             </div>
@@ -1035,39 +1136,14 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
               aria-label="사이드바 닫기"
               title="사이드바 닫기"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
           </div>
           
-          <div className="flex-1 overflow-y-auto mb-4">
-            <ul className="flex flex-col border border-gray-200 rounded-lg bg-white overflow-hidden">
-              {/* 참여자 목록 */}
-              {buddyList.map((buddy, index) => {
-                const buddyName = buddy.name || buddy.member_name || `참여자 ${index + 1}`;
-                
-                return (
-                  <li 
-                    key={buddy.id || index} 
-                    className={index > 0 ? "border-t border-gray-200" : ""}
-                  >
-                    <ParticipantCard
-                      index={index}
-                      name={buddyName}
-                      isEmpty={false}
-                      onClick={() => handleParticipantClick(index, buddy.id)}
-                      isSelected={selectedParticipantIndices.has(index)}
-                      votedDates={[]} // TODO: buddy의 투표한 날짜 데이터 연결
-                    />
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-
-          {/* 참여자 추가 입력 필드 - 목록 아래 */}
-          <div className="pt-4 border-t border-gray-200">
+          {/* 참여자 추가 입력 필드 - 상위로 이동 */}
+          <div className="mb-3 pb-3">
             <div className="relative">
               <input
                 type="text"
@@ -1086,13 +1162,16 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                   }, 200);
                 }}
                 placeholder="참여자 이름"
-                className="w-full px-3 pr-20 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-0 focus:border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 [font-family:var(--font-body)]"
+                className="w-full px-3 pr-20 py-1 text-xs border border-gray-200/50 rounded-sm focus:outline-none focus:ring-0 focus:border-gray-200/50 bg-white text-gray-900 placeholder:text-gray-400 [font-family:var(--font-body)]"
                 disabled={isAddingMember}
               />
               <motion.button
                 onClick={handleAddMember}
                 disabled={!newMemberName.trim() || isAddingMember}
-                className="absolute right-1 top-1/2 -translate-y-1/2 px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                className={cn(
+                  "absolute right-0 top-1/2 -translate-y-1/2 px-3 py-1 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed transition",
+                  "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-md"
+                )}
                 whileHover={{ 
                   scale: 1.05,
                   y: -1
@@ -1111,17 +1190,41 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
               </motion.button>
             </div>
           </div>
+
+          <div className="flex-1 overflow-y-auto">
+            <ul className="flex flex-col rounded-lg bg-white overflow-hidden">
+              {/* 참여자 목록 */}
+              {buddyList.map((buddy, index) => {
+                const buddyName = buddy.name || buddy.member_name || `참여자 ${index + 1}`;
+                
+                return (
+                  <li 
+                    key={buddy.id || index}
+                  >
+                    <ParticipantCard
+                      index={index}
+                      name={buddyName}
+                      isEmpty={false}
+                      onClick={() => handleParticipantClick(index, buddy.id)}
+                      isSelected={selectedParticipantIndices.has(index)}
+                      votedDates={[]} // TODO: buddy의 투표한 날짜 데이터 연결
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         </div>
       </aside>
 
       {/* 우측 사이드바 - 추천 일정 (데스크톱만) */}
-      <aside className={`hidden md:block fixed right-0 top-0 z-40 h-screen w-64 bg-[#FAF9F6] border-l border-white/70 shadow-lg transition-transform duration-300 ease-in-out ${
+      <aside className={`hidden md:block fixed right-0 top-0 z-40 h-screen w-64 bg-white border-l border-white/70 transition-transform duration-300 ease-in-out ${
         isRightSidebarOpen ? "translate-x-0" : "translate-x-full"
       }`}>
         <div className="flex h-full flex-col p-3 md:p-4">
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <h2 className="text-base font-semibold text-[#333333] [font-family:var(--font-headline)]">추천 일정</h2>
+              <h2 className="text-xs font-semibold text-[#333333] [font-family:var(--font-headline)]">추천 일정</h2>
             </div>
             <button
               onClick={() => setIsRightSidebarOpen(false)}
@@ -1129,7 +1232,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
               aria-label="사이드바 닫기"
               title="사이드바 닫기"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </button>
@@ -1178,11 +1281,11 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
             <div className="flex items-center gap-3">
               <button
                 onClick={() => router.push("/enter")}
-                className="p-2 text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                className="p-1 text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
                 title="홈으로"
                 aria-label="홈으로"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                 </svg>
               </button>
@@ -1191,16 +1294,16 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
               </h1>
               <button
                 onClick={handleCopyUrl}
-                className="p-2 text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                className="p-1 text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
                 title={isUrlCopied ? "복사됨!" : "URL 복사"}
                 aria-label="URL 복사"
               >
                 {isUrlCopied ? (
-                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 ) : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
                 )}
@@ -1219,27 +1322,27 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
               <div className="hidden md:flex items-center gap-2">
                 <button
                   onClick={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)}
-                  className="p-2 text-gray-700 hover:bg-gray-100 rounded-md"
+                  className="p-1 text-gray-700 hover:bg-gray-100 rounded-md"
                   aria-label="참여자 사이드바 토글"
                   title={isLeftSidebarOpen ? "참여자 사이드바 닫기" : "참여자 사이드바 열기"}
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                 </button>
                 <button
                   onClick={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
-                  className="p-2 text-gray-700 hover:bg-gray-100 rounded-md"
+                  className="p-1 text-gray-700 hover:bg-gray-100 rounded-md"
                   aria-label="추천 일정 사이드바 토글"
                   title={isRightSidebarOpen ? "추천 일정 사이드바 닫기" : "추천 일정 사이드바 열기"}
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </button>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-[#333333] [font-family:var(--font-body)]">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-[#333333] [font-family:var(--font-body)]">
                   내 투표만 보기
                 </span>
                 <button
@@ -1252,15 +1355,15 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                       }
                     }
                   }}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none backdrop-blur-sm ${
+                  className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors focus:outline-none backdrop-blur-sm ${
                     showOnlyMyVotes ? "bg-[#333333]" : "bg-gray-300"
                   } ${!selectedBuddyId ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                   disabled={!selectedBuddyId}
                   title={!selectedBuddyId ? "참여자를 선택해주세요" : ""}
                 >
                   <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      showOnlyMyVotes ? "translate-x-6" : "translate-x-1"
+                    className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                      showOnlyMyVotes ? "translate-x-[14px]" : "translate-x-0.5"
                     }`}
                   />
                 </button>
@@ -1282,6 +1385,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                 unavailableDateKeys={unavailableDateKeys}
                 dateVotersMap={dateVotersMap}
                 dateUnavailableVotersMap={dateUnavailableVotersMap}
+                selectedUserUnavailableDateKeys={selectedUserUnavailableDateKeys}
                 onDateSelect={handleCalendarDateClick}
                 onMonthChange={(year, month) => {
                   setCurrentCalendarYear(year);
@@ -1294,7 +1398,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
             <section className="md:hidden w-full mt-4 mb-4 relative z-0">
               <div className="bg-white border border-gray-200 rounded-lg p-4">
                 <div className="mb-4">
-                  <h2 className="text-base font-semibold text-[#333333] [font-family:var(--font-headline)]">추천 일정</h2>
+                  <h2 className="text-xs font-semibold text-[#333333] [font-family:var(--font-headline)]">추천 일정</h2>
                 </div>
                 <div className="max-h-64 overflow-y-auto">
                   {slotList.length > 0 ? (

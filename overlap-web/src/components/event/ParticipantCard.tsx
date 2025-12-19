@@ -50,7 +50,7 @@ export function ParticipantCard({ name, index, isEmpty = false, onClick, isSelec
     <div className="w-full">
       <div 
         onClick={isEmpty ? undefined : onClick}
-        className={`flex items-center gap-1 px-1 py-1 transition-all duration-300 ${
+        className={`flex items-center gap-1 px-1 py-1 min-h-[28px] transition-all duration-300 ${
           isEmpty 
             ? "opacity-40 cursor-not-allowed" 
             : isSelected 
@@ -60,8 +60,8 @@ export function ParticipantCard({ name, index, isEmpty = false, onClick, isSelec
       >
         {name && (
           <div className="flex-1 min-w-0 flex items-center gap-1">
-            <span className="text-xs flex-shrink-0">{emoji}</span>
-            <div className={`text-sm [font-family:var(--font-body)] ${
+            <span className="text-xs w-6 shrink-0 flex items-center justify-center">{emoji}</span>
+            <div className={`flex-1 min-w-0 text-xs [font-family:var(--font-body)] ${
               isEmpty 
                 ? "text-gray-500 font-normal" 
                 : isSelected
@@ -95,6 +95,7 @@ export function ParticipantCard({ name, index, isEmpty = false, onClick, isSelec
     </div>
   );
 }
+
 
 
 

@@ -17,35 +17,83 @@ export function TopTime({ slots, onDateClick, selectedDateKey, fixedSlots, total
     return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
   };
 
+  const formatDateParts = (dateObj?: Date, dateStr?: string) => {
+    if (dateObj) {
+      const month = dateObj.getMonth() + 1;
+      const day = dateObj.getDate();
+      const dayOfWeek = dateObj.getDay();
+      const dayLabels = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
+      return {
+        datePart: `${month}월 ${day}일`,
+        dayPart: dayLabels[dayOfWeek]
+      };
+    }
+    // dateObj가 없으면 dateStr에서 파싱 시도
+    if (dateStr) {
+      const match = dateStr.match(/(\d+)\/(\d+)\s*\((\w+)\)/);
+      if (match) {
+        const month = parseInt(match[1]);
+        const day = parseInt(match[2]);
+        const dayShort = match[3];
+        const dayLabels: { [key: string]: string } = {
+          "일": "일요일", "월": "월요일", "화": "화요일", 
+          "수": "수요일", "목": "목요일", "금": "금요일", "토": "토요일"
+        };
+        return {
+          datePart: `${month}월 ${day}일`,
+          dayPart: dayLabels[dayShort] || dayShort
+        };
+      }
+    }
+    return {
+      datePart: dateStr || "",
+      dayPart: ""
+    };
+  };
+
+  // 캘박된 항목이 있는지 확인
+  const hasFixedSlots = slots.some((slot) => slot.dateObj && fixedSlots?.has(getDateKey(slot.dateObj)));
+
   return (
     <div className="w-full">
       <ul>
         {slots.map((slot, index) => {
           const isSelected = slot.dateObj && selectedDateKey === getDateKey(slot.dateObj);
           const isLast = index === slots.length - 1;
+          const isFixed = slot.dateObj && fixedSlots?.has(getDateKey(slot.dateObj));
+          const isFirstRank = index === 0;
+          const shouldShowRecommended = !hasFixedSlots && isFirstRank;
           
           return (
             <li 
               key={`${slot.date}-${index}`} 
               onClick={() => slot.dateObj && onDateClick?.(slot.dateObj)}
-              className={`flex items-center gap-1 py-1 px-1 cursor-pointer transition-colors border-b border-dashed border-gray-200 ${
-                isLast ? "border-b-0" : ""
-              } ${
+              className={`flex items-center gap-1 px-1 py-1.5 min-h-[36px] cursor-pointer transition-all duration-300 ${
                 isSelected 
-                  ? "bg-white/50 font-semibold" 
-                  : "hover:bg-white/30"
+                  ? "bg-gray-50 font-semibold" 
+                  : "hover:bg-gray-50"
               }`}
             >
-              <span className="text-xs font-medium text-gray-600 [font-family:var(--font-body)] shrink-0 mr-2">
+              <span className="text-xs font-medium text-gray-600 [font-family:var(--font-body)] w-6 shrink-0 flex items-center justify-center">
                 {index + 1}.
               </span>
-              <div className="flex items-center gap-1 flex-1">
-                <span className={`text-sm [font-family:var(--font-body)] ${
-                  isSelected ? "text-[#333333]" : "text-[#333333]"
-                }`}>{slot.date}</span>
+              <div className="flex-1 min-w-0 flex items-center gap-0.5">
+                {(() => {
+                  const { datePart, dayPart } = formatDateParts(slot.dateObj, slot.date);
+                  return (
+                    <>
+                      <span className={`text-xs [font-family:var(--font-body)] w-16 shrink-0 ${
+                        isSelected ? "text-gray-900 font-bold" : "text-gray-900 font-normal"
+                      }`}>{datePart}</span>
+                      <span className={`text-xs [font-family:var(--font-body)] w-12 shrink-0 ${
+                        isSelected ? "text-gray-600 font-bold" : "text-gray-600 font-normal"
+                      }`}>{dayPart}</span>
+                    </>
+                  );
+                })()}
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                {slot.votes !== undefined && totalMembers && slot.votes === totalMembers && slot.dateObj && !fixedSlots?.has(getDateKey(slot.dateObj)) && (
+                {(shouldShowRecommended || (slot.votes !== undefined && totalMembers && slot.votes === totalMembers && slot.dateObj && !isFixed)) && (
                   <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-300 [font-family:var(--font-body)]">
                     추천
                   </span>
@@ -66,6 +114,7 @@ export function TopTime({ slots, onDateClick, selectedDateKey, fixedSlots, total
     </div>
   );
 }
+
 
 
 

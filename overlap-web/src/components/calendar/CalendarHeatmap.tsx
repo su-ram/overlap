@@ -19,6 +19,7 @@ type CalendarHeatmapProps = {
   unavailableDateKeys?: Set<string>; // 딤 처리할 날짜 키들 (pick: -1인 날짜)
   dateVotersMap?: Map<string, string[]>; // 날짜별 투표한 참여자 이름 목록
   dateUnavailableVotersMap?: Map<string, string[]>; // 날짜별 "안 되는 날"로 표시한 참여자 이름 목록 (pick: -1)
+  selectedUserUnavailableDateKeys?: Set<string>; // 현재 선택된 사용자가 "안 되는 날"로 선택한 날짜 키들 (클릭 가능하도록)
 };
 
 const densityClass = (level: number, isSelected: boolean = false) => {
@@ -48,6 +49,7 @@ export function CalendarHeatmap({
   unavailableDateKeys,
   dateVotersMap,
   dateUnavailableVotersMap,
+  selectedUserUnavailableDateKeys,
 }: CalendarHeatmapProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
@@ -234,12 +236,22 @@ export function CalendarHeatmap({
           const focused = isDateFocused(dayInfo.date);
           const highlighted = isDateHighlighted(dayInfo.date);
           const fixed = isDateFixed(dayInfo.date);
-          const isUnavailable = isDateUnavailable(dayInfo.date);
+          const dateKey = getDateKey(dayInfo.date);
+          const isSelectedUserUnavailable = selectedUserUnavailableDateKeys?.has(dateKey) ?? false;
+          // "내 투표만 보기" 모드일 때는 현재 사용자의 unavailable 날짜만 체크, 아닐 때는 모든 unavailable 날짜 체크
+          const isHighlightMode = highlightedDateKeys !== undefined;
+          const isUnavailable = isHighlightMode 
+            ? isSelectedUserUnavailable 
+            : isDateUnavailable(dayInfo.date);
+          // 현재 선택된 사용자가 선택한 "안 되는 날"은 클릭 가능 (disable 해제)
+          const isClickable = isUnavailable && isSelectedUserUnavailable;
           // pick: -1인 날짜는 투표 수를 0으로 처리
-          const availabilityLevel = isUnavailable ? 0 : getAvailabilityLevel(dayIndex);
+          // "내 투표만 보기" 모드일 때는 내가 투표하지 않은 날짜는 항상 레벨 0 (흰색)
+          const availabilityLevel = isHighlightMode
+            ? (highlighted ? (isUnavailable ? 0 : getAvailabilityLevel(dayIndex)) : 0)
+            : (isUnavailable ? 0 : getAvailabilityLevel(dayIndex));
           const votes = isUnavailable ? 0 : (availabilityData?.[dayIndex] ?? 0);
           const isHighVote = isUnavailable ? false : isDateHighVote(dayIndex);
-          const isHighlightMode = highlightedDateKeys !== undefined;
           
           // 오늘 날짜인지 확인
           const today = new Date();
@@ -253,32 +265,35 @@ export function CalendarHeatmap({
           const holidayName = getHolidayName(dayInfo.date);
           
           // 해당 날짜에 투표한 참여자 목록 (pick: -1인 날짜는 빈 배열)
-          const dateKey = getDateKey(dayInfo.date);
           const voters = isUnavailable ? [] : (dateVotersMap?.get(dateKey) || []);
           // 해당 날짜에 "안 되는 날"로 표시한 참여자 목록
           const unavailableVoters = isUnavailable ? (dateUnavailableVotersMap?.get(dateKey) || []) : [];
-          // tooltip 표시 여부: 투표가 있거나 "안 되는 날"로 표시한 참여자가 있는 경우만
-          const shouldShowTooltip = isUnavailable 
+          // tooltip 표시 여부: "내 투표만 보기" 모드가 아닐 때만, 그리고 투표가 있거나 "안 되는 날"로 표시한 참여자가 있는 경우만
+          const shouldShowTooltip = !isHighlightMode && (isUnavailable 
             ? unavailableVoters.length > 0 
-            : (votes > 0 || voters.length > 0);
+            : (votes > 0 || voters.length > 0));
 
           return (
             <button
               key={dayIndex}
-              onClick={() => !isUnavailable && handleDateClick(dayInfo.date)}
-              disabled={isUnavailable}
+              onClick={() => (isClickable || !isUnavailable) && handleDateClick(dayInfo.date)}
+              disabled={isUnavailable && !isClickable}
               className={cn(
                 "h-full rounded-sm border text-xs font-medium transition-all [font-family:var(--font-body)] overflow-visible backdrop-blur-[6px] group",
-                isUnavailable 
+                isUnavailable && !isClickable
                   ? "opacity-50 cursor-not-allowed" 
                   : "hover:opacity-80 active:scale-[0.95] active:translate-y-0.5",
                 "transform transition-transform duration-150 ease-out",
-                // "내 투표만 보기" 모드일 때 내가 투표한 날짜만 강조
-                isHighlightMode && highlighted
-                  ? "bg-[#C8E6C9] text-[#333333]" // 내가 투표한 날짜 강조
+                // "내 투표만 보기" 모드일 때 내가 투표한 날짜만 초록 배경 (1단계)
+                isHighlightMode && highlighted && !isSelectedUserUnavailable
+                  ? "bg-[#C8E6C9] text-[#333333]" // 내가 투표한 날짜 강조 (color range 1단계)
                   : "",
-                // 테두리 처리 (일반 모드와 동일)
-                isHighVote && !highlighted
+                // "내 투표만 보기" 모드일 때 안 되는 날로 투표한 날은 딤 처리만 (disable 아님)
+                isHighlightMode && isSelectedUserUnavailable
+                  ? "opacity-50"
+                  : "",
+                // 테두리 처리
+                !isHighlightMode && isHighVote && !highlighted
                   ? "border-2 border-[#4CAF50] border-opacity-80 shadow-md"
                   : !highlighted
                   ? "border border-gray-200/50"
@@ -286,8 +301,12 @@ export function CalendarHeatmap({
                 !isHighlightMode && highlighted
                   ? "bg-white/60 backdrop-blur-md border-white/60 text-[#333333]"
                   : "",
-                // densityClass 적용 (내 투표만 보기 모드에서도 일반 날짜는 일반 스타일)
-                !highlighted && densityClass(availabilityLevel, false)
+                // densityClass 적용 (내 투표만 보기 모드가 아닐 때만)
+                !isHighlightMode && !highlighted && densityClass(availabilityLevel, false),
+                // "내 투표만 보기" 모드에서 내가 투표하지 않은 날짜는 무조건 흰색 배경 (다른 사람 투표 여부와 무관)
+                isHighlightMode && !highlighted && !isSelectedUserUnavailable
+                  ? "bg-white text-[#333333]"
+                  : ""
               )}
             >
               <div className="relative flex flex-col items-start justify-start h-full p-1 w-full">
@@ -306,7 +325,8 @@ export function CalendarHeatmap({
                 {holidayName && (
                   <span className={`text-[8px] font-medium leading-tight mt-0.5 ${isUnavailable ? "text-[#333333]" : "text-red-600"}`}>{holidayName}</span>
                 )}
-                {focused && !isHighlightMode && (
+                {/* 점 표시: 내가 투표한 날짜만 (일반 투표 + 안 되는 날로 투표한 날짜) */}
+                {focused && (
                   <span className="absolute bottom-0.5 right-0.5 text-[8px] text-gray-600">●</span>
                 )}
               </div>
