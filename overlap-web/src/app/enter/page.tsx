@@ -26,17 +26,21 @@ export default function EnterPage() {
     location: string;
   }) => {
     setIsCreating(true);
+    const startTime = Date.now();
     try {
-      // Next.js API Route로 모임 생성
-      const response = await fetch('/api/moim', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          moim_name: payload.title || null,
+      // 최소 2초 대기와 API 호출을 동시에 실행
+      const [response] = await Promise.all([
+        fetch('/api/moim', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            moim_name: payload.title || null,
+          }),
         }),
-      });
+        new Promise(resolve => setTimeout(resolve, 2000))
+      ]);
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -46,9 +50,20 @@ export default function EnterPage() {
       const result = await response.json();
       const eventId = result.id; // UUID string
       
+      // 최소 2초가 지났는지 확인하고, 안 지났으면 남은 시간만큼 대기
+      const elapsedTime = Date.now() - startTime;
+      if (elapsedTime < 2000) {
+        await new Promise(resolve => setTimeout(resolve, 2000 - elapsedTime));
+      }
+      
       // 생성된 ID로 모임 페이지로 리다이렉트
       router.push(`/moim/${eventId}`);
     } catch (error) {
+      // 에러 발생 시에도 최소 2초 대기
+      const elapsedTime = Date.now() - startTime;
+      if (elapsedTime < 2000) {
+        await new Promise(resolve => setTimeout(resolve, 2000 - elapsedTime));
+      }
       console.error('Error creating moim:', error);
       console.error('Error details:', error instanceof Error ? error.message : String(error));
       setIsCreating(false);
@@ -59,11 +74,8 @@ export default function EnterPage() {
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#FAF9F6] px-6 py-10">
       {isCreating && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="bg-white rounded-lg p-8 shadow-xl flex flex-col items-center gap-4">
-            <Loader size="lg" />
-            <p className="text-gray-700 [font-family:var(--font-body)]">모임을 생성하는 중...</p>
-          </div>
+        <div className="fixed inset-0 bg-[#FAF9F6] z-50 flex items-center justify-center">
+          <Loader size="lg" />
         </div>
       )}
       <div
@@ -90,35 +102,6 @@ export default function EnterPage() {
           />
         </div>
       </div>
-      
-      {/* 플로팅 버튼 */}
-      <motion.button
-        onClick={() => {
-          // 플로팅 버튼 클릭 시 동작 (필요시 수정)
-          const form = document.querySelector('form');
-          if (form) {
-            const input = form.querySelector('input') as HTMLInputElement;
-            if (input) {
-              input.focus();
-            }
-          }
-        }}
-        className="fixed bottom-6 right-6 z-40 shadow-lg hover:opacity-80 transition-opacity"
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.95 }}
-        transition={{ type: "spring", stiffness: 400, damping: 17 }}
-        aria-label="빠른 액션"
-        title="빠른 액션"
-      >
-        <Image
-          src="/floattingbutton.svg"
-          alt="플로팅 버튼"
-          width={56}
-          height={56}
-          className="w-14 h-14"
-        />
-      </motion.button>
-      
       <style jsx global>{`
         @keyframes float {
           0% {

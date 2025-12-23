@@ -1,6 +1,7 @@
 "use client"; 
 
 import { useState, useMemo, useEffect } from "react";
+import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isHoliday, getHolidayName } from "@/lib/holidays";
@@ -252,6 +253,8 @@ export function CalendarHeatmap({
             : (isUnavailable ? 0 : getAvailabilityLevel(dayIndex));
           const votes = isUnavailable ? 0 : (availabilityData?.[dayIndex] ?? 0);
           const isHighVote = isUnavailable ? false : isDateHighVote(dayIndex);
+          // 전원이 다 되는 날짜 확인 (100% 투표)
+          const isAllMembersVoted = !isUnavailable && totalMembers && votes > 0 && votes === totalMembers;
           
           // 오늘 날짜인지 확인
           const today = new Date();
@@ -274,16 +277,18 @@ export function CalendarHeatmap({
             : (votes > 0 || voters.length > 0));
 
           return (
-            <button
+            <motion.button
               key={dayIndex}
               onClick={() => (isClickable || !isUnavailable) && handleDateClick(dayInfo.date)}
               disabled={isUnavailable && !isClickable}
+              whileHover={isUnavailable && !isClickable ? {} : { backgroundColor: "#C8E6C9" }}
+              whileTap={isUnavailable && !isClickable ? {} : { scale: 0.95 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
               className={cn(
-                "h-full rounded-sm border text-xs font-medium transition-all [font-family:var(--font-body)] overflow-visible backdrop-blur-[6px] group",
+                "h-full rounded-sm border text-xs font-medium [font-family:var(--font-body)] overflow-visible backdrop-blur-[6px] group",
                 isUnavailable && !isClickable
                   ? "opacity-50 cursor-not-allowed" 
-                  : "hover:opacity-80 active:scale-[0.95] active:translate-y-0.5",
-                "transform transition-transform duration-150 ease-out",
+                  : "cursor-pointer",
                 // "내 투표만 보기" 모드일 때 내가 투표한 날짜만 초록 배경 (1단계)
                 isHighlightMode && highlighted && !isSelectedUserUnavailable
                   ? "bg-[#C8E6C9] text-[#333333]" // 내가 투표한 날짜 강조 (color range 1단계)
@@ -301,8 +306,12 @@ export function CalendarHeatmap({
                 !isHighlightMode && highlighted
                   ? "bg-white/60 backdrop-blur-md border-white/60 text-[#333333]"
                   : "",
-                // densityClass 적용 (내 투표만 보기 모드가 아닐 때만)
-                !isHighlightMode && !highlighted && densityClass(availabilityLevel, false),
+                // 전원이 다 되는 날짜는 가장 진한 초록색 (투명도 없음)
+                !isHighlightMode && !highlighted && isAllMembersVoted
+                  ? "bg-[#4CAF50] text-white"
+                  : "",
+                // densityClass 적용 (내 투표만 보기 모드가 아닐 때만, 전원 투표가 아닌 경우)
+                !isHighlightMode && !highlighted && !isAllMembersVoted && densityClass(availabilityLevel, false),
                 // "내 투표만 보기" 모드에서 내가 투표하지 않은 날짜는 무조건 흰색 배경 (다른 사람 투표 여부와 무관)
                 isHighlightMode && !highlighted && !isSelectedUserUnavailable
                   ? "bg-white text-[#333333]"
@@ -370,7 +379,7 @@ export function CalendarHeatmap({
                 </div>
               </div>
               )}
-            </button>
+            </motion.button>
           );
         })}
       </div>

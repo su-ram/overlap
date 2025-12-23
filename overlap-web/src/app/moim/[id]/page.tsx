@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { CalendarHeatmap } from "@/components/calendar/CalendarHeatmap";
 import { ParticipantCard } from "@/components/event/ParticipantCard";
 import { TopTime } from "@/components/event/TopTime";
+import { Logo } from "@/components/Logo";
 import { buttonPrimary, buttonSecondary } from "@/colors";
 import { cn } from "@/lib/utils";
 import { Loader } from "@/components/ui/Loader";
@@ -111,9 +112,15 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
     }
 
     const fetchMoimData = async () => {
+      const startTime = Date.now();
       try {
         console.log("Fetching moim data for id:", moimId);
-        const response = await fetch(`/api/moim?id=${moimId}`);
+        // 최소 2초 대기와 API 호출을 동시에 실행
+        const [response] = await Promise.all([
+          fetch(`/api/moim?id=${moimId}`),
+          new Promise(resolve => setTimeout(resolve, 2000))
+        ]);
+        
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           throw new Error(errorData.error || "Failed to fetch moim data");
@@ -121,7 +128,18 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
         const data = await response.json();
         console.log("Moim data fetched:", data);
         setMoimData(data);
+        
+        // 최소 2초가 지났는지 확인하고, 안 지났으면 남은 시간만큼 대기
+        const elapsedTime = Date.now() - startTime;
+        if (elapsedTime < 2000) {
+          await new Promise(resolve => setTimeout(resolve, 2000 - elapsedTime));
+        }
       } catch (error) {
+        // 에러 발생 시에도 최소 2초 대기
+        const elapsedTime = Date.now() - startTime;
+        if (elapsedTime < 2000) {
+          await new Promise(resolve => setTimeout(resolve, 2000 - elapsedTime));
+        }
         console.error("Error fetching moim data:", error);
         setMoimData(null);
       } finally {
@@ -789,6 +807,10 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       await navigator.clipboard.writeText(currentUrl);
       setIsUrlCopied(true);
       showToastMessage("URL이 복사되었습니다");
+      // 2초 후에 복사 상태를 원래대로 되돌림
+      setTimeout(() => {
+        setIsUrlCopied(false);
+      }, 2000);
     } catch (error) {
       console.error("Failed to copy URL:", error);
       alert("URL 복사에 실패했습니다.");
@@ -1076,19 +1098,16 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       <div className="flex min-h-screen items-center justify-center bg-[#FAF9F6]">
         <div className="text-center flex flex-col items-center gap-4">
           <Loader size="lg" />
-          <p className="text-[#333333] [font-family:var(--font-body)]">로딩 중...</p>
         </div>
       </div>
     );
   }
 
-  if (!moimData) {
+  if (!moimData && !loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#FAF9F6]">
-        <div className="text-center">
-          <div className="text-6xl mb-4">🔍</div>
-          <h1 className="text-2xl font-bold text-[#333333] [font-family:var(--font-headline)]">모임을 찾는 중입니다</h1>
-          <p className="mt-2 text-[#333333] [font-family:var(--font-body)]">잠시만 기다려주세요...</p>
+        <div className="text-center flex flex-col items-center gap-4">
+          <Loader size="lg" />
         </div>
       </div>
     );
@@ -1165,29 +1184,16 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                 className="w-full px-3 pr-20 py-1 text-xs border border-gray-200/50 rounded-sm focus:outline-none focus:ring-0 focus:border-gray-200/50 bg-white text-gray-900 placeholder:text-gray-400 [font-family:var(--font-body)]"
                 disabled={isAddingMember}
               />
-              <motion.button
+              <button
                 onClick={handleAddMember}
                 disabled={!newMemberName.trim() || isAddingMember}
                 className={cn(
                   "absolute right-0 top-1/2 -translate-y-1/2 px-3 py-1 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed transition",
                   "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-md"
                 )}
-                whileHover={{ 
-                  scale: 1.05,
-                  y: -1
-                }}
-                whileTap={{ 
-                  scale: 0.95,
-                  y: 0
-                }}
-                transition={{ 
-                  type: "spring", 
-                  stiffness: 400, 
-                  damping: 17 
-                }}
               >
                 추가
-              </motion.button>
+              </button>
             </div>
           </div>
 
@@ -1218,7 +1224,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       </aside>
 
       {/* 우측 사이드바 - 추천 일정 (데스크톱만) */}
-      <aside className={`hidden md:block fixed right-0 top-0 z-40 h-screen w-64 bg-white border-l border-white/70 transition-transform duration-300 ease-in-out ${
+      <aside className={`hidden md:block fixed right-0 top-0 z-40 h-screen w-64 bg-white border-l border-gray-200 transition-transform duration-300 ease-in-out ${
         isRightSidebarOpen ? "translate-x-0" : "translate-x-full"
       }`}>
         <div className="flex h-full flex-col p-3 md:p-4">
@@ -1249,8 +1255,8 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                   totalMembers={buddyList.length}
                 />
               ) : (
-                <div className="text-sm text-[#333333] text-center py-4">
-                  등록된 시간 슬롯이 없습니다
+                <div className="text-xs text-[#333333] text-center py-4 [font-family:var(--font-body)]">
+                  투표된 시간이 없습니다
                 </div>
               )}
             </div>
@@ -1277,47 +1283,47 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
           </div>
 
           {/* 모임 제목 및 토글 */}
-          <div className="mb-3 md:mb-6 flex items-center justify-between px-2 md:px-0">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => router.push("/enter")}
-                className="p-1 text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-                title="홈으로"
-                aria-label="홈으로"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                </svg>
-              </button>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#333333] [font-family:var(--font-headline)]">
-                {moimData?.moim_name || "모임"}
-              </h1>
-              <button
-                onClick={handleCopyUrl}
-                className="p-1 text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-                title={isUrlCopied ? "복사됨!" : "URL 복사"}
-                aria-label="URL 복사"
-              >
-                {isUrlCopied ? (
-                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                ) : (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-                )}
-              </button>
-              <select
-                value={voteFilterMode}
-                onChange={(e) => setVoteFilterMode(e.target.value as 'available' | 'unavailable')}
-                className="px-2 py-1 pr-6 text-xs bg-white text-[#333333] [font-family:var(--font-body)] focus:outline-none border border-gray-200/50 rounded-sm"
-              >
-                <option value="available">되는 날 🟢</option>
-                <option value="unavailable">안 되는 날 ❌</option>
-              </select>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
+          <div className="mb-3 md:mb-6 px-2 md:px-0">
+            {/* 첫 번째 행: 아이콘 및 버튼들 */}
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => router.push("/enter")}
+                  className="p-1 hover:bg-gray-100 rounded-md transition-colors"
+                  title="홈으로"
+                  aria-label="홈으로"
+                >
+                  <img src="/favicon.png" alt="홈으로" className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={handleCopyUrl}
+                  className="p-1 text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                  title={isUrlCopied ? "복사됨!" : "URL 복사"}
+                  aria-label="URL 복사"
+                >
+                  {isUrlCopied ? (
+                    <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  )}
+                </button>
+                <select
+                  value={voteFilterMode}
+                  onChange={(e) => setVoteFilterMode(e.target.value as 'available' | 'unavailable')}
+                  disabled={!selectedBuddyId}
+                  className={`px-2 py-1 pr-6 text-xs bg-white text-[#333333] [font-family:var(--font-body)] focus:outline-none border border-gray-200/50 rounded-sm ${
+                    !selectedBuddyId ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                >
+                  <option value="available">되는 날 🟢</option>
+                  <option value="unavailable">안 되는 날 ❌</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
               {/* 데스크톱 사이드바 토글 버튼 */}
               <div className="hidden md:flex items-center gap-2">
                 <button
@@ -1368,7 +1374,12 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                   />
                 </button>
               </div>
+              </div>
             </div>
+            {/* 두 번째 행: 모임 타이틀 (전체 너비) */}
+            <h1 className="text-2xl md:text-3xl font-bold text-[#333333] [font-family:var(--font-headline)] w-full">
+              {moimData?.moim_name || "모임"}
+            </h1>
           </div>
 
           <div className="w-full flex flex-col gap-4 md:gap-6 md:flex-1 md:min-h-0 md:overflow-hidden">

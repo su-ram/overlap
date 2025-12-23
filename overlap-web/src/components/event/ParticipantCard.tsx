@@ -1,3 +1,5 @@
+import { motion } from "framer-motion";
+
 interface ParticipantCardProps {
   name?: string;
   index: number;
@@ -47,7 +49,16 @@ export function ParticipantCard({ name, index, isEmpty = false, onClick, isSelec
   };
 
   return (
-    <div className="w-full">
+    <motion.div 
+      className="w-full"
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ 
+        duration: 0.45, 
+        delay: index * 0.05,
+        ease: "easeOut"
+      }}
+    >
       <div 
         onClick={isEmpty ? undefined : onClick}
         className={`flex items-center gap-1 px-1 py-1 min-h-[28px] transition-all duration-300 ${
@@ -92,9 +103,10 @@ export function ParticipantCard({ name, index, isEmpty = false, onClick, isSelec
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
+
 
 
 

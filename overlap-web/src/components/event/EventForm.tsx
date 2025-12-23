@@ -40,25 +40,12 @@ export function EventForm({ onSubmit, onParticipantCountChange }: EventFormProps
           placeholder="모임 이름을 입력하세요"
           required
         />
-        <motion.button
+        <button
           type="submit"
-          className={cn(buttonSecondary, "absolute right-0 top-1/2 -translate-y-1/2 flex-shrink-0")}
-          whileHover={{ 
-            scale: 1.02,
-            y: -2
-          }}
-          whileTap={{ 
-            scale: 0.98,
-            y: 0
-          }}
-          transition={{ 
-            type: "spring", 
-            stiffness: 400, 
-            damping: 17 
-          }}
+          className={cn(buttonSecondary, "absolute right-0 top-1/2 -translate-y-1/2 flex-shrink-0 hover:bg-gray-200 transition-colors")}
         >
           모임 만들기
-        </motion.button>
+        </button>
       </div>
     </form>
   );
