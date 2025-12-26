@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Search, Home, Mail } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { useLoading } from "@/contexts/LoadingContext";
+import { useNotFound } from "@/contexts/NotFoundContext";
 
 interface SubButton {
   icon: React.ReactNode;
@@ -22,9 +23,10 @@ export function FloatingActionButton({ subButtons = [] }: FloatingActionButtonPr
   const pathname = usePathname();
   const [isExpanded, setIsExpanded] = useState(false);
   const { isLoading } = useLoading();
+  const { isNotFound } = useNotFound();
 
-  // 로더 화면과 API 문서 화면에서는 플로팅 버튼 숨김
-  const shouldHide = pathname === "/api-docs" || isLoading;
+  // 로더 화면, API 문서 화면, 404 페이지에서는 플로팅 버튼 숨김
+  const shouldHide = pathname === "/api-docs" || isLoading || isNotFound;
 
   if (shouldHide) {
     return null;
