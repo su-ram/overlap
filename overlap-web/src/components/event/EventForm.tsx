@@ -42,7 +42,7 @@ export function EventForm({ onSubmit, onParticipantCountChange }: EventFormProps
         />
         <button
           type="submit"
-          className={cn(buttonSecondary, "absolute right-0 top-1/2 -translate-y-1/2 flex-shrink-0 hover:bg-gray-200 transition-colors")}
+          className={cn(buttonSecondary, "absolute right-0 top-1/2 -translate-y-1/2 flex-shrink-0 hover:bg-gray-200 transition-colors py-2")}
         >
           모임 만들기
         </button>
