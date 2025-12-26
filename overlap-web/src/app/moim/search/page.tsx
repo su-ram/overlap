@@ -176,7 +176,7 @@ export default function MoimSearchPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 text-[10px] text-gray-500">
-                        <span>ID: {moim.id}</span>
+                        <span>ID: {moim.id ? (moim.id.split('-').pop() || moim.id) : ''}</span>
                       </div>
                     </motion.div>
                   ))}
