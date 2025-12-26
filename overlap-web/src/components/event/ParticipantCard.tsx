@@ -61,7 +61,7 @@ export function ParticipantCard({ name, index, isEmpty = false, onClick, isSelec
     >
       <div 
         onClick={isEmpty ? undefined : onClick}
-        className={`flex items-center gap-1 px-1 py-1 min-h-[28px] transition-all duration-300 ${
+        className={`flex items-center gap-1 px-1 py-1.5 min-h-[36px] transition-all duration-300 ${
           isEmpty 
             ? "opacity-40 cursor-not-allowed" 
             : isSelected 

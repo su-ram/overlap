@@ -8,11 +8,13 @@ import Image from "next/image";
 import { buttonPrimary } from "@/colors";
 import { EventForm } from "@/components/event/EventForm";
 import { Loader } from "@/components/ui/Loader";
+import { useLoading } from "@/contexts/LoadingContext";
 
 export default function EnterPage() {
   const router = useRouter();
   const [show, setShow] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const { setIsLoading } = useLoading();
 
   useEffect(() => {
     const t = setTimeout(() => setShow(true), 80);
@@ -26,6 +28,7 @@ export default function EnterPage() {
     location: string;
   }) => {
     setIsCreating(true);
+    setIsLoading(true);
     const startTime = Date.now();
     try {
       // 최소 2초 대기와 API 호출을 동시에 실행
@@ -67,6 +70,7 @@ export default function EnterPage() {
       console.error('Error creating moim:', error);
       console.error('Error details:', error instanceof Error ? error.message : String(error));
       setIsCreating(false);
+      setIsLoading(false);
       alert(error instanceof Error ? error.message : "모임 생성에 실패했습니다. 다시 시도해주세요.");
     }
   };
@@ -74,7 +78,7 @@ export default function EnterPage() {
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#FAF9F6] px-6 py-10">
       {isCreating && (
-        <div className="fixed inset-0 bg-[#FAF9F6] z-50 flex items-center justify-center">
+        <div className="fixed inset-0 bg-[#FAF9F6] z-[60] flex items-center justify-center">
           <Loader size="lg" />
         </div>
       )}

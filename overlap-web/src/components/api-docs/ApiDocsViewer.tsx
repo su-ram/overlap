@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { ReactElement } from "react";
 import { ChevronDown, ChevronRight, Copy, Check } from "lucide-react";
 
 interface ApiDocsViewerProps {
@@ -42,7 +43,7 @@ export function ApiDocsViewer({ spec }: ApiDocsViewerProps) {
     return colors[method.toLowerCase()] || "bg-gray-100 text-gray-700 border-gray-300";
   };
 
-  const renderSchema = (schema: any, level = 0): JSX.Element | null => {
+  const renderSchema = (schema: any, level = 0): ReactElement | null => {
     if (!schema) return null;
 
     if (schema.$ref) {

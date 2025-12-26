@@ -10,6 +10,7 @@ import { Logo } from "@/components/Logo";
 import { buttonPrimary, buttonSecondary } from "@/colors";
 import { cn } from "@/lib/utils";
 import { Loader } from "@/components/ui/Loader";
+import { useLoading } from "@/contexts/LoadingContext";
 
 type Buddy = {
   id: number; // bigint
@@ -44,6 +45,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
   const [moimId, setMoimId] = useState<string | null>(null);
   const [moimData, setMoimData] = useState<MoimData | null>(null);
   const [loading, setLoading] = useState(true);
+  const { setIsLoading } = useLoading();
   const [selectedDateKey, setSelectedDateKey] = useState<string | undefined>();
   const [selectedParticipantIndices, setSelectedParticipantIndices] = useState<Set<number>>(new Set());
   const [focusedDateKeys, setFocusedDateKeys] = useState<Set<string>>(new Set());
@@ -103,6 +105,11 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
     };
     extractId();
   }, [params]);
+
+  // 로딩 상태를 전역 Context에 동기화
+  useEffect(() => {
+    setIsLoading(loading || (!moimData && !loading));
+  }, [loading, moimData, setIsLoading]);
 
   // moim 정보 가져오기
   useEffect(() => {
@@ -1122,7 +1129,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#FAF9F6]">
+      <div className="flex min-h-screen items-center justify-center bg-[#FAF9F6] z-[60]">
         <div className="text-center flex flex-col items-center gap-4">
           <Loader size="lg" />
         </div>
@@ -1132,7 +1139,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
 
   if (!moimData && !loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#FAF9F6]">
+      <div className="flex min-h-screen items-center justify-center bg-[#FAF9F6] z-[60]">
         <div className="text-center flex flex-col items-center gap-4">
           <Loader size="lg" />
         </div>
@@ -1314,14 +1321,6 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
             {/* 첫 번째 행: 아이콘 및 버튼들 */}
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-3">
-                <button
-                  onClick={() => router.push("/enter")}
-                  className="p-1 hover:bg-gray-100 rounded-md transition-colors"
-                  title="홈으로"
-                  aria-label="홈으로"
-                >
-                  <img src="/favicon.png" alt="홈으로" className="w-4 h-4" />
-                </button>
                 <button
                   onClick={handleCopyUrl}
                   className="p-1 text-gray-700 hover:bg-gray-100 rounded-md transition-colors"

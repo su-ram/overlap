@@ -8,6 +8,8 @@ import {
   Plus_Jakarta_Sans
 } from "next/font/google";
 import "./globals.css";
+import { FloatingActionButton } from "@/components/ui/FloatingActionButton";
+import { LoadingProvider } from "@/contexts/LoadingContext";
 
 // 본문 / UI 텍스트
 const inter = Inter({
@@ -71,7 +73,10 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body className={`${inter.variable} ${notoSans.variable} ${playfairDisplay.variable} ${cormorantGaramond.variable} ${plusJakartaSans.variable} ${geistMono.variable} antialiased`}>
-        {children}
+        <LoadingProvider>
+          {children}
+          <FloatingActionButton />
+        </LoadingProvider>
       </body>
     </html>
   );
