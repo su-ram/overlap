@@ -8,6 +8,18 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: [
+          '"Pretendard Variable"',
+          'Pretendard',
+          'Apple SD Gothic Neo',
+          'Noto Sans KR',
+          'system-ui',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          'sans-serif',
+        ],
+      },
       colors: {
         primary: "rgba(76, 175, 80, 0.9)", // #4CAF50 with 90% opacity
         glass: "rgba(255,255,255,0.6)",

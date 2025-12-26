@@ -1,0 +1,22 @@
+{
+  "entryPoints": ["src/app/api/**/*.ts"],
+  "out": "docs/api",
+  "plugin": ["typedoc-plugin-markdown"],
+  "exclude": ["**/*.test.ts", "**/*.spec.ts", "**/node_modules/**"],
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeInternal": true,
+  "readme": "none",
+  "name": "Overlap API Documentation",
+  "includeVersion": true,
+  "categorizeByGroup": true,
+  "categoryOrder": [
+    "Moim",
+    "Slot",
+    "Member",
+    "Top Timeslots",
+    "Availability",
+    "Suggest",
+    "*"
+  ]
+}

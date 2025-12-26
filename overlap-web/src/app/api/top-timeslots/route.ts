@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/server";
+import type { TopTimeslotsResponse, ErrorResponse } from "@/types/api";
 
+/**
+ * 추천 시간 슬롯 조회
+ * @route GET /api/top-timeslots
+ * @param {string} req.query.moimId - 모임 ID
+ * @param {number} req.query.year - 연도
+ * @param {number} req.query.month - 월 (1-12)
+ * @returns {Promise<NextResponse<TopTimeslotsResponse | ErrorResponse>>} 추천 시간 슬롯 목록 또는 에러
+ */
 export async function GET(req: NextRequest) {
   const supabase = createAdminClient();
   const searchParams = req.nextUrl.searchParams;

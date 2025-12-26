@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/server";
+import type { CreateSlotRequest, UpdateSlotRequest, Slot, ErrorResponse } from "@/types/api";
 
-// POST /api/slot - slot 생성
+/**
+ * 시간 슬롯 생성
+ * @route POST /api/slot
+ * @param {CreateSlotRequest} req.body - 슬롯 생성 요청 데이터
+ * @returns {Promise<NextResponse<Slot | ErrorResponse>>} 생성된 슬롯 정보 또는 에러
+ */
 export async function POST(req: NextRequest) {
   try {
     const supabase = createAdminClient();
@@ -46,7 +52,14 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// DELETE /api/slot - slot 삭제
+/**
+ * 시간 슬롯 삭제
+ * @route DELETE /api/slot
+ * @param {string} req.query.moimId - 모임 ID
+ * @param {string} req.query.buddyId - 참여자 ID
+ * @param {string} req.query.date - 날짜 (YYYY-MM-DD)
+ * @returns {Promise<NextResponse<{ success: boolean } | ErrorResponse>>} 삭제 결과 또는 에러
+ */
 export async function DELETE(req: NextRequest) {
   try {
     const supabase = createAdminClient();
@@ -86,7 +99,14 @@ export async function DELETE(req: NextRequest) {
   }
 }
 
-// GET /api/slot - slot 조회 (특정 날짜, 특정 사용자)
+/**
+ * 시간 슬롯 조회
+ * @route GET /api/slot
+ * @param {string} req.query.moimId - 모임 ID
+ * @param {string} req.query.buddyId - 참여자 ID
+ * @param {string} req.query.date - 날짜 (YYYY-MM-DD)
+ * @returns {Promise<NextResponse<{ slots: Slot[] } | ErrorResponse>>} 슬롯 목록 또는 에러
+ */
 export async function GET(req: NextRequest) {
   try {
     const supabase = createAdminClient();
@@ -126,7 +146,12 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// PATCH /api/slot - slot 업데이트 (fix 속성, pick 등)
+/**
+ * 시간 슬롯 업데이트
+ * @route PATCH /api/slot
+ * @param {UpdateSlotRequest} req.body - 슬롯 업데이트 요청 데이터
+ * @returns {Promise<NextResponse<{ slots: Slot[] } | ErrorResponse>>} 업데이트된 슬롯 목록 또는 에러
+ */
 export async function PATCH(req: NextRequest) {
   try {
     const supabase = createAdminClient();

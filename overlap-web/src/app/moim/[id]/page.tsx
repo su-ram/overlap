@@ -66,6 +66,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
   const [toastMessage, setToastMessage] = useState<string>("");
   const [isInputFocused, setIsInputFocused] = useState<boolean>(false);
   const isInputFocusedRef = useRef<boolean>(false);
+  const hasInitialLoadRef = useRef<boolean>(false);
   const [fixedSlots, setFixedSlots] = useState<Set<string>>(new Set());
   const [showCelebration, setShowCelebration] = useState<boolean>(false);
   const [unavailableDateKeys, setUnavailableDateKeys] = useState<Set<string>>(new Set());
@@ -558,25 +559,45 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       console.error("Error fetching top timeslots:", error);
       setSlotList([]);
     }
-  }, [moimId, currentCalendarYear, currentCalendarMonth, buddyList, fixedSlots]);
+    // buddyList와 fixedSlots는 함수 내부에서 최신 값을 참조하므로 dependency에서 제거
+    // 시간 데이터 변경 시에만 명시적으로 호출하도록 변경
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [moimId, currentCalendarYear, currentCalendarMonth]);
 
-  // 캘린더 year/month 변경 시 top 리스트 조회
-  useEffect(() => {
-    fetchTopTimeslots();
-  }, [fetchTopTimeslots]);
-
-  // 선택된 참여자가 변경될 때 타임 슬롯 정보 초기화 및 API 다시 호출
-  useEffect(() => {
-    if (selectedBuddyId !== null) {
-      // 타임 슬롯 정보 초기화
+  // 월 변경 핸들러 (useCallback으로 메모이제이션)
+  const handleMonthChange = useCallback((year: number, month: number) => {
+    // 실제로 월이 변경되었을 때만 처리
+    if (year !== currentCalendarYear || month !== currentCalendarMonth) {
+      // 먼저 slotList 초기화
       setSlotList([]);
-      // API 다시 호출
-      fetchTopTimeslots();
-    } else {
-      // 참여자가 선택되지 않았을 때도 초기화
-      setSlotList([]);
+      // 그 다음 월 변경 (useEffect에서 자동으로 fetchTopTimeslots 호출됨)
+      setCurrentCalendarYear(year);
+      setCurrentCalendarMonth(month);
     }
-  }, [selectedBuddyId, fetchTopTimeslots]);
+  }, [currentCalendarYear, currentCalendarMonth]);
+
+  // 페이지 진입 시점에 top 리스트 조회 (moimData가 로드된 후)
+  useEffect(() => {
+    // moimData가 로드되고 캘린더가 렌더링된 후 (월 정보가 설정된 후) 페이지 진입 시점에 top slot 목록 조회
+    if (moimId && moimData && !hasInitialLoadRef.current && currentCalendarYear && currentCalendarMonth !== undefined) {
+      hasInitialLoadRef.current = true;
+      fetchTopTimeslots();
+    }
+    // moimData의 id를 dependency로 사용하여 객체 참조 변경 문제 방지
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [moimData?.id, currentCalendarYear, currentCalendarMonth]);
+
+  // 월 변경 시 top 리스트 조회 (시간 데이터 변경 감지)
+  useEffect(() => {
+    // 초기 로드가 완료된 후 월이 변경될 때만 top slot 목록 조회
+    if (moimId && hasInitialLoadRef.current && currentCalendarYear && currentCalendarMonth !== undefined) {
+      fetchTopTimeslots();
+    }
+    // moimId는 함수 내부에서 체크하므로 dependency에서 제거 (배열 크기 일관성 유지)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentCalendarYear, currentCalendarMonth]);
+
+  // 선택된 참여자가 변경될 때는 top slot 리스트를 갱신하지 않음
 
   const getDateKey = (date: Date) => {
     return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
@@ -644,6 +665,8 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
           
           // 모임 데이터 새로고침 (fix 상태 반영)
           await refreshMoimData();
+          // 시간 데이터 변경 후 top slot 목록 재조회
+          await fetchTopTimeslots();
           
           showToastMessage("취소했습니다.");
         } catch (error) {
@@ -683,6 +706,8 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
         
         // 모임 데이터 새로고침 (fix 상태 반영)
         await refreshMoimData();
+        // 시간 데이터 변경 후 top slot 목록 재조회
+        await fetchTopTimeslots();
         
         // Confetti 효과
         triggerConfetti();
@@ -783,8 +808,8 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
         const data = await response.json();
         setMoimData(data);
       }
-      // 모임 데이터 새로고침 후 top 리스트도 재조회
-      await fetchTopTimeslots();
+      // 시간 데이터 변경이 아닐 수 있으므로 fetchTopTimeslots는 호출하지 않음
+      // 슬롯 변경 시에만 명시적으로 fetchTopTimeslots() 호출
     } catch (error) {
       console.error("Error refreshing moim data:", error);
     }
@@ -1087,6 +1112,8 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
 
       // 모임 데이터 새로고침 (slot list 다시 가져오기)
       await refreshMoimData();
+      // 시간 데이터 변경 후 top slot 목록 재조회
+      await fetchTopTimeslots();
     } catch (error) {
       console.error("Error toggling slot:", error);
       alert(error instanceof Error ? error.message : "시간 슬롯 처리에 실패했습니다. 다시 시도해주세요.");
@@ -1398,10 +1425,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                 dateUnavailableVotersMap={dateUnavailableVotersMap}
                 selectedUserUnavailableDateKeys={selectedUserUnavailableDateKeys}
                 onDateSelect={handleCalendarDateClick}
-                onMonthChange={(year, month) => {
-                  setCurrentCalendarYear(year);
-                  setCurrentCalendarMonth(month);
-                }}
+                onMonthChange={handleMonthChange}
               />
             </section>
 

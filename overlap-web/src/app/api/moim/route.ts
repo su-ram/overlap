@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/server";
+import type { CreateMoimRequest, MoimResponse, ErrorResponse } from "@/types/api";
 
+/**
+ * 모임 생성
+ * @route POST /api/moim
+ * @param {CreateMoimRequest} req.body - 모임 생성 요청 데이터
+ * @returns {Promise<NextResponse<MoimResponse | ErrorResponse>>} 생성된 모임 정보 또는 에러
+ */
 export async function POST(req: Request) {
   const supabase = createAdminClient();
   const body = await req.json();
@@ -18,6 +25,12 @@ export async function POST(req: Request) {
   return NextResponse.json(data);
 }
 
+/**
+ * 모임 조회
+ * @route GET /api/moim
+ * @param {string} req.query.id - 모임 ID (UUID)
+ * @returns {Promise<NextResponse<MoimResponse | ErrorResponse>>} 모임 정보 또는 에러
+ */
 export async function GET(req: NextRequest) {
   const supabase = createAdminClient();
   const searchParams = req.nextUrl.searchParams;
