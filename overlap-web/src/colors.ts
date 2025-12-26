@@ -28,25 +28,25 @@ export const buttonPrimary =
   "inline-flex items-center justify-center \
   rounded-sm px-2 py-1 text-sm font-medium \
   bg-[#4CAF50]/80 text-black border-[1px] border-[#4CAF50] \
-  hover:bg-[#4CAF50]/90 \
+  hover:bg-[#4CAF50]/90 hover:border-black \
   active:scale-[0.98] \
   transition";
 
 export const buttonSecondary =
   "inline-flex items-center justify-center \
-  rounded-md px-4 py-2 text-sm font-medium \
+  rounded-sm px-2 py-1 text-sm font-medium \
   bg-white border border-gray-200 text-gray-700 \
-  hover:bg-gray-50 \
+  hover:bg-gray-50 hover:border-black \
   transition";
 
 export const buttonGlass =
   "inline-flex items-center justify-center \
-  rounded-lg px-4 py-2 text-sm font-medium \
+  rounded-sm px-2 py-1 text-sm font-medium \
   bg-white/60 backdrop-blur-md \
   border border-white/70 \
   text-gray-800 \
   shadow-soft \
-  hover:bg-white/80 \
+  hover:bg-white/80 hover:border-black \
   transition";
 
 

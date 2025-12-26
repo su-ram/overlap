@@ -13,21 +13,15 @@ export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
   const name = searchParams.get("name");
 
-  // name 파라미터 검증
-  if (!name || name.trim() === "") {
-    return NextResponse.json(
-      { error: "name parameter is required" },
-      { status: 400 }
-    );
-  }
-
   try {
-    // 모임명으로 검색 (부분 일치, 대소문자 구분 없음)
-    const { data: moimList, error: moimError } = await supabase
-      .from("moim")
-      .select("*")
-      .ilike("moim_name", `%${name.trim()}%`)
-      .order("created_at", { ascending: false });
+    let query = supabase.from("moim").select("*");
+
+    // name 파라미터가 있으면 검색, 없으면 전체 목록
+    if (name && name.trim() !== "") {
+      query = query.ilike("moim_name", `%${name.trim()}%`);
+    }
+
+    const { data: moimList, error: moimError } = await query.order("created_at", { ascending: false });
 
     if (moimError) {
       return NextResponse.json(
